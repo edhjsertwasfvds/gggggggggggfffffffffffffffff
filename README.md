@@ -76,20 +76,22 @@ npm run smoke
 
 ## Деплой на Railway
 
-Для SQLite в Railway теперь используется только `DATABASE_PATH`.
+Для SQLite в Railway лучше использовать **Volume** (постоянный том).
 
-1. Открой Railway → сервис → **Variables**
-2. Добавь переменную `DATABASE_PATH`
-3. Для Linux задай путь, например: `/app/data/fear-data.db`
-4. Сохрани и сделай redeploy
+1. Открой Railway → сервис → **Volumes / New Volume**
+2. Mount path: `/app/data`
+3. Сохрани и сделай redeploy
 
-> **Важно:** не используй `RAILWAY_VOLUME_MOUNT_PATH` в логике приложения — путь к БД задаётся явно через `DATABASE_PATH`.
+После этого приложение автоматически подхватит `RAILWAY_VOLUME_MOUNT_PATH` и будет хранить базу в `/app/data/fear-data.db`.
+
+> **Важно:** `DATABASE_PATH` в Railway обычно не нужен при использовании Volume.
 
 ### Если видишь SIGTERM / npm error command failed
 
-1. **Проверь `DATABASE_PATH`** — путь должен существовать и быть доступен на запись.
-2. **Проверь логи** — ошибка может быть от старого контейнера при redeploy. Прокрути выше в Deploy Logs.
-3. **Start Command:** если не задан, Railway запускает `npm start`. Можно явно указать `node src/server.js`.
+1. **Проверь Volume**: mount path `/app/data` должен быть подключён к сервису.
+2. **Если ошибки доступа к файлам** — добавь `RAILWAY_RUN_UID=0`.
+3. **Проверь логи** — ошибка может быть от старого контейнера при redeploy. Прокрути выше в Deploy Logs.
+4. **Start Command:** если не задан, Railway запускает `npm start`. Можно явно указать `node src/server.js`.
 
 ## Важные заметки
 

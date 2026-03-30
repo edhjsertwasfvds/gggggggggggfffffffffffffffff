@@ -17,7 +17,7 @@ const state = {
     customFiltersOpen: false,
     filtersMenuOpen: false,
     columnsMenuOpen: false,
-    punishments: { count: 0, list: [], loading: false, lastSteamId: '', selectedMonth: null, view: 'list', staffList: null, staffStatsRows: null, staffStatsLoading: false, staffStatsData: {}, staffStatsProgress: null, lastLoadedAt: 0, lastSource: '' }
+    punishments: { count: 0, list: [], loading: false, lastSteamId: '', selectedMonth: null, view: 'list', staffList: null, staffStatsRows: null, staffStatsLoading: false, staffStatsData: {}, staffStatsProgress: null, staffTicketsYm: null, staffTicketsBySid: {}, staffTicketsLoading: false, secureLoaded: false, staffTableMode: 'new', lastLoadedAt: 0, lastSource: '' }
 };
 
 let ws = null;
@@ -643,7 +643,13 @@ function renderPanel() {
             const totalBans = statsRows.reduce((s, r) => s + r.bans, 0);
             const totalMutes = statsRows.reduce((s, r) => s + r.mutes, 0);
             const totalSum = totalBans + totalMutes;
-            const totalRemoved = statsRows.reduce((s, r) => s + (r.removed || 0), 0);
+            const secure = !!(window.StaffStatsSecure && typeof window.StaffStatsSecure.computePayoutRow === 'function');
+            const tableMode = state.punishments.staffTableMode === 'old' ? 'old' : 'new';
+            const isOldTable = tableMode === 'old';
+            const ticketsMap = state.punishments.staffTicketsBySid || {};
+            const payoutRows = secure ? statsRows.map(r => window.StaffStatsSecure.computePayoutRow(r, ticketsMap[String(r.admin_steamid)] || 0)) : [];
+            const totalTickets = secure ? payoutRows.reduce((s, r) => s + (r.tickets || 0), 0) : 0;
+            const totalPay = secure ? payoutRows.reduce((s, r) => s + (r.pay?.total || 0), 0) : 0;
 
             content.innerHTML = punishmentsInputHtml + monthSelectHtml + `
                 <div class="flex gap-4 mb-4 flex-wrap">
@@ -659,12 +665,28 @@ function renderPanel() {
                         <div class="text-emerald-400 font-bold text-xl">${totalSum}</div>
                         <div class="text-gray-500 text-xs mt-0.5">Всего (активно/истек)</div>
                     </div>
-                    <div class="flex-1 min-w-[100px] bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3 text-center">
-                        <div class="text-blue-400 font-bold text-xl">${totalRemoved}</div>
-                        <div class="text-gray-500 text-xs mt-0.5">Снято</div>
+                    ${secure ? `
+                    <div class="flex-1 min-w-[100px] bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-4 py-3 text-center">
+                        <div class="text-indigo-300 font-bold text-xl">${totalTickets}</div>
+                        <div class="text-gray-500 text-xs mt-0.5">Тикетов (вручную)</div>
                     </div>
+                    <div class="flex-1 min-w-[100px] bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-center">
+                        <div class="text-white font-bold text-xl">${totalPay}</div>
+                        <div class="text-gray-500 text-xs mt-0.5">Итого выплаты (р)</div>
+                    </div>` : `
+                    <div class="flex-1 min-w-[160px] bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-center">
+                        <div class="text-gray-400 font-semibold text-sm">Загрузка модуля выплат…</div>
+                        <div class="text-gray-600 text-xs mt-0.5">доступно только с 3 уровня</div>
+                    </div>`}
                 </div>
-                ${Array.isArray(state.punishments.staffStatsRows) ? '<div class="text-xs text-gray-500 mb-3">Статистика считается с запуска сервера и обновляется каждый час.</div>' : '<div class="text-xs text-gray-500 mb-3">Загрузка с сервера…</div>'}
+                <div class="flex items-center gap-2 mb-3 flex-wrap">
+                    ${Array.isArray(state.punishments.staffStatsRows) ? '<div class="text-xs text-gray-500">Статистика считается с запуска сервера и обновляется каждый час.</div>' : '<div class="text-xs text-gray-500">Загрузка с сервера…</div>'}
+                    <div class="ml-auto flex items-center gap-2">
+                        <button type="button" onclick="setStaffStatsTableMode('old')" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${isOldTable ? 'bg-white/20 text-white' : 'bg-white/5 text-gray-400 hover:bg-white/10'}">Старая таблица</button>
+                        <button type="button" onclick="setStaffStatsTableMode('new')" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${!isOldTable ? 'bg-indigo-500/30 text-indigo-200' : 'bg-white/5 text-gray-400 hover:bg-white/10'}">Новая таблица</button>
+                    </div>
+                    ${secure ? `<button type="button" onclick="exportStaffStatsCsv()" class="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors">Экспорт Excel (CSV)</button>` : ''}
+                </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead>
@@ -675,12 +697,12 @@ function renderPanel() {
                                 <th class="py-3 px-2 font-semibold text-rose-400">Баны</th>
                                 <th class="py-3 px-2 font-semibold text-amber-400">Муты</th>
                                 <th class="py-3 px-2 font-semibold text-emerald-400">Сумма</th>
-                                <th class="py-3 px-2 font-semibold text-blue-400">Снято</th>
+                                ${secure && !isOldTable ? '<th class="py-3 px-2 font-semibold text-indigo-300">Тикеты</th><th class="py-3 px-2 font-semibold text-white">Выплата</th>' : ''}
                             </tr>
                         </thead>
                         <tbody>
                             ${statsRows.length === 0
-                                ? '<tr><td colspan="7" class="py-6 text-center text-gray-500">Список стафа загружается...</td></tr>'
+                                ? `<tr><td colspan="${secure && !isOldTable ? 8 : 6}" class="py-6 text-center text-gray-500">Список стафа загружается...</td></tr>`
                                 : statsRows.map((r, i) => `
                                 <tr class="border-b border-white/5 hover:bg-white/[0.03] row-new">
                                     <td class="py-3 px-2 text-gray-500 font-mono">${i + 1}</td>
@@ -697,7 +719,23 @@ function renderPanel() {
                                     <td class="py-3 px-2 text-rose-400 font-semibold">${r.bans || '<span class="text-gray-600">0</span>'}</td>
                                     <td class="py-3 px-2 text-amber-400 font-semibold">${r.mutes || '<span class="text-gray-600">0</span>'}</td>
                                     <td class="py-3 px-2 ${r.sum > 0 ? 'text-emerald-400 font-bold' : 'text-gray-600'}">${r.sum}</td>
-                                    <td class="py-3 px-2 text-blue-400 font-semibold">${r.removed || '<span class="text-gray-600">0</span>'}</td>
+                                    ${secure && !isOldTable ? (() => {
+                                        const sid = String(r.admin_steamid || '');
+                                        const cur = (ticketsMap && ticketsMap[sid] != null) ? ticketsMap[sid] : 0;
+                                        const pr = window.StaffStatsSecure.computePayoutRow(r, cur);
+                                        return `
+                                        <td class="py-3 px-2">
+                                            <div class="flex items-center gap-2">
+                                                <input type="number" min="0" step="1" value="${cur}" data-ticket-sid="${escapeHtml(sid)}" class="w-20 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs focus:outline-none focus:border-indigo-500">
+                                                <button type="button" onclick="saveStaffTicketsFromInput('${escapeHtml(sid)}')" class="px-2 py-1 text-[11px] font-semibold rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 transition-colors">OK</button>
+                                            </div>
+                                            <div class="text-[10px] text-gray-600 mt-1">ставка: ${pr.rates.ticketRate}р</div>
+                                        </td>
+                                        <td class="py-3 px-2 text-white font-semibold">
+                                            ${pr.pay.total}
+                                            <div class="text-[10px] text-gray-600 mt-1">б:${pr.pay.bans} м:${pr.pay.mutes} т:${pr.pay.tickets}</div>
+                                        </td>`;
+                                    })() : ''}
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -885,6 +923,7 @@ function setPunishmentsMonth(value) {
     if (list) list.classList.add('hidden');
     state.punishments.selectedMonth = value || null;
     if (state.punishments.view === 'stats') {
+        loadStaffTicketsForSelectedMonth();
         state.punishments.staffStatsRows = null;
         if (Array.isArray(state.punishments.staffList) && Object.keys(state.punishments.staffStatsData || {}).length > 0) {
             state.punishments.staffStatsRows = computeStaffStatsRows(
@@ -905,11 +944,105 @@ function setPunishmentsView(view) {
     }
     state.punishments.view = view;
     scheduleRenderPanel();
-    if (view === 'stats') loadStaffStatsFromServer();
+    if (view === 'stats') {
+        ensureStaffSecureLoaded().then(() => {
+            loadStaffStatsFromServer();
+            loadStaffTicketsForSelectedMonth();
+        });
+    }
+}
+
+async function ensureStaffSecureLoaded() {
+    if (state.punishments.secureLoaded) return true;
+    if (getUserLevel() < 3) return false;
+    try {
+        const res = await fetch('/secure/staff-stats-secure.js', { headers: apiAuthHeaders() });
+        if (!res.ok) return false;
+        const js = await res.text();
+        const s = document.createElement('script');
+        s.text = js;
+        document.head.appendChild(s);
+        state.punishments.secureLoaded = !!(window.StaffStatsSecure && typeof window.StaffStatsSecure.computeStaffStatsRowsSecure === 'function');
+        return state.punishments.secureLoaded;
+    } catch (_) {
+        return false;
+    }
+}
+
+function getEffectiveYm(selectedMonth) {
+    if (selectedMonth && /^\d{4}-\d{2}$/.test(selectedMonth)) return selectedMonth;
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+}
+
+async function loadStaffTicketsForSelectedMonth() {
+    if (getUserLevel() < 3) return;
+    const ym = getEffectiveYm(state.punishments.selectedMonth);
+    if (state.punishments.staffTicketsLoading && state.punishments.staffTicketsYm === ym) return;
+    state.punishments.staffTicketsLoading = true;
+    state.punishments.staffTicketsYm = ym;
+    try {
+        const res = await fetch('/api/staff-tickets?ym=' + encodeURIComponent(ym), { headers: apiAuthHeaders() });
+        if (res.status === 403) return;
+        const data = await res.json().catch(() => ({}));
+        const map = {};
+        (Array.isArray(data.tickets) ? data.tickets : []).forEach(r => {
+            const sid = String(r.steam_id || '').trim();
+            if (sid) map[sid] = parseInt(r.tickets, 10) || 0;
+        });
+        state.punishments.staffTicketsBySid = map;
+    } catch (_) {
+        state.punishments.staffTicketsBySid = {};
+    } finally {
+        state.punishments.staffTicketsLoading = false;
+        if (state.openCategory === 'Наказания') scheduleRenderPanel();
+    }
+}
+
+async function saveStaffTickets(steamId, tickets) {
+    if (getUserLevel() < 3) return;
+    const ym = getEffectiveYm(state.punishments.selectedMonth);
+    try {
+        const res = await fetch('/api/staff-tickets?ym=' + encodeURIComponent(ym), {
+            method: 'POST',
+            headers: apiAuthHeaders(),
+            body: JSON.stringify({ steamId, tickets })
+        });
+        if (!res.ok) return;
+        state.punishments.staffTicketsBySid = { ...(state.punishments.staffTicketsBySid || {}), [String(steamId)]: parseInt(tickets, 10) || 0 };
+        if (state.openCategory === 'Наказания') scheduleRenderPanel();
+    } catch (_) {}
+}
+
+function saveStaffTicketsFromInput(steamId) {
+    const sid = String(steamId || '').trim();
+    if (!sid) return;
+    const inp = document.querySelector(`input[data-ticket-sid="${CSS.escape(sid)}"]`);
+    const val = inp ? inp.value : '0';
+    saveStaffTickets(sid, parseInt(val, 10) || 0);
+}
+
+function exportStaffStatsCsv() {
+    if (!(window.StaffStatsSecure && typeof window.StaffStatsSecure.toCsv === 'function')) return;
+    const rows = Array.isArray(state.punishments.staffStatsRows) ? state.punishments.staffStatsRows : [];
+    const map = state.punishments.staffTicketsBySid || {};
+    const payout = rows.map(r => window.StaffStatsSecure.computePayoutRow(r, map[String(r.admin_steamid)] || 0));
+    const ym = getEffectiveYm(state.punishments.selectedMonth);
+    const csv = window.StaffStatsSecure.toCsv(payout);
+    window.StaffStatsSecure.downloadCsv(`staff-stats-${ym}.csv`, csv);
+}
+
+function setStaffStatsTableMode(mode) {
+    const m = mode === 'old' ? 'old' : 'new';
+    state.punishments.staffTableMode = m;
+    if (state.openCategory === 'Наказания' && state.punishments.view === 'stats') {
+        scheduleRenderPanel();
+    }
 }
 
 async function loadStaffStatsFromServer() {
     if (getUserLevel() < 3) return;
+    await ensureStaffSecureLoaded();
     try {
         let res = await fetch('/api/punishments/staff-stats', { headers: apiAuthHeaders() });
         if (res.status === 403) return;
@@ -954,6 +1087,9 @@ async function loadPunishmentsStaffList() {
 }
 
 function computeStaffStatsRows(staffList, statsDataBySid, selectedMonth) {
+    if (window.StaffStatsSecure && typeof window.StaffStatsSecure.computeStaffStatsRowsSecure === 'function') {
+        return window.StaffStatsSecure.computeStaffStatsRowsSecure(staffList, statsDataBySid, selectedMonth);
+    }
     const inSelectedMonth = (p) => {
         if (!selectedMonth) return true;
         const ts = getPunishmentCreatedTs(p);
@@ -970,10 +1106,8 @@ function computeStaffStatsRows(staffList, statsDataBySid, selectedMonth) {
             const st = Number(p?.status);
             return st === 1 || st === 4;
         });
-        const unbanned = scoped.filter(p => Number(p?.status) === 2);
         const bans = activeOrExpired.filter(p => p.type === 1).length;
         const mutes = activeOrExpired.filter(p => p.type === 2).length;
-        const removed = unbanned.length;
         return {
             admin_steamid: sid,
             admin: s.name || '—',
@@ -981,8 +1115,7 @@ function computeStaffStatsRows(staffList, statsDataBySid, selectedMonth) {
             group: s.group_display_name || '',
             bans,
             mutes,
-            sum: bans + mutes,
-            removed
+            sum: bans + mutes
         };
     }).sort((a, b) => b.sum - a.sum);
 }

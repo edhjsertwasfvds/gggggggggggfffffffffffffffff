@@ -12,6 +12,8 @@ const defaultDbPath = path.resolve(__dirname, '..', 'data', 'fear-data.db');
 let dbPath;
 if (process.env.DATABASE_PATH) {
     dbPath = path.resolve(process.env.DATABASE_PATH);
+} else if (process.env.RAILWAY_VOLUME_MOUNT_PATH) {
+    dbPath = path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, 'fear-data.db');
 } else {
     dbPath = defaultDbPath;
 }
@@ -239,6 +241,29 @@ function initDatabase() {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_server_activity_hour ON server_activity(hour)`);
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)`);
 
+    // Ручные тикеты для расчёта зарплат/премий стаффа.
+    // Один SteamID + месяц (YYYY-MM) -> значение.
+    db.exec(`CREATE TABLE IF NOT EXISTS staff_tickets (
+        steam_id TEXT NOT NULL,
+        ym TEXT NOT NULL,
+        tickets INTEGER NOT NULL DEFAULT 0,
+        updated_by_user_id INTEGER,
+        updated_by_username TEXT,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (steam_id, ym)
+    )`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_staff_tickets_ym ON staff_tickets(ym)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_staff_tickets_steam_id ON staff_tickets(steam_id)`);
+
+    // Роли стаффа для расчёта выплат (ГА / СТА / СТМ / М / МЛ).
+    db.exec(`CREATE TABLE IF NOT EXISTS staff_roles (
+        steam_id TEXT PRIMARY KEY,
+        role TEXT NOT NULL,
+        updated_by_user_id INTEGER,
+        updated_by_username TEXT,
+        updated_at INTEGER NOT NULL
+    )`);
+
     const bootstrapUsers = getBootstrapUsersFromEnv();
     if (bootstrapUsers.length) {
         for (const u of bootstrapUsers) {
@@ -253,6 +278,68 @@ function initDatabase() {
     migrateAllUserLauncherKeys();
     saveDb();
     console.log('✅ База данных инициализирована (sql.js)');
+}
+
+function normalizeYm(ym) {
+    const v = String(ym || '').trim();
+    if (!v) return '';
+    return /^\d{4}-\d{2}$/.test(v) ? v : '';
+}
+
+function clampInt(n, min, max) {
+    const x = parseInt(n, 10);
+    if (!Number.isFinite(x)) return min;
+    return Math.min(Math.max(x, min), max);
+}
+
+function upsertStaffTickets(steamId, ym, tickets, updatedByUserId, updatedByUsername) {
+    const sid = String(steamId || '').trim();
+    const m = normalizeYm(ym);
+    if (!sid || !m) return false;
+    const t = clampInt(tickets, 0, 1000000);
+    const now = Date.now();
+    db.prepare(
+        `INSERT OR REPLACE INTO staff_tickets (steam_id, ym, tickets, updated_by_user_id, updated_by_username, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(sid, m, t, updatedByUserId != null ? Number(updatedByUserId) : null, String(updatedByUsername || ''), now);
+    return true;
+}
+
+function getStaffTicketsByMonth(ym) {
+    const m = normalizeYm(ym);
+    if (!m) return [];
+    return db.prepare('SELECT steam_id, ym, tickets, updated_by_user_id, updated_by_username, updated_at FROM staff_tickets WHERE ym = ?').all(m);
+}
+
+function getStaffTicketsOne(steamId, ym) {
+    const sid = String(steamId || '').trim();
+    const m = normalizeYm(ym);
+    if (!sid || !m) return null;
+    const row = db.prepare('SELECT steam_id, ym, tickets, updated_by_user_id, updated_by_username, updated_at FROM staff_tickets WHERE steam_id = ? AND ym = ?').get(sid, m);
+    return row || null;
+}
+
+function upsertStaffRole(steamId, role, updatedByUserId, updatedByUsername) {
+    const sid = String(steamId || '').trim();
+    const r = String(role || '').trim().toUpperCase();
+    if (!sid || !r) return false;
+    const now = Date.now();
+    db.prepare(
+        `INSERT OR REPLACE INTO staff_roles (steam_id, role, updated_by_user_id, updated_by_username, updated_at)
+         VALUES (?, ?, ?, ?, ?)`
+    ).run(sid, r, updatedByUserId != null ? Number(updatedByUserId) : null, String(updatedByUsername || ''), now);
+    return true;
+}
+
+function deleteStaffRole(steamId) {
+    const sid = String(steamId || '').trim();
+    if (!sid) return false;
+    const res = db.prepare('DELETE FROM staff_roles WHERE steam_id = ?').run(sid);
+    return res.changes > 0;
+}
+
+function getAllStaffRoles() {
+    return db.prepare('SELECT steam_id, role, updated_by_user_id, updated_by_username, updated_at FROM staff_roles').all();
 }
 
 function logAction(userId, userName, actionType, targetSteamId, targetName, details, ipAddress) {
@@ -484,5 +571,7 @@ module.exports = {
     createUser, verifyUser, getUserById, getAllUsers, deleteUser, updateUserLevel, updateUserPassword, updateUserSteamId, getUserCount, deleteAllUsers, restoreUsersFromEnv,
     ensureUserLauncherApiKey, getUserByLauncherApiKey,
     createInviteCode, useInviteCode, validateInviteCode, getInviteCodes, deleteInviteCode,
-    saveSession, getSessionFromDb, deleteSessionFromDb, cleanupExpiredSessionsDb, getActiveSessionsFromDb
+    saveSession, getSessionFromDb, deleteSessionFromDb, cleanupExpiredSessionsDb, getActiveSessionsFromDb,
+    upsertStaffTickets, getStaffTicketsByMonth, getStaffTicketsOne,
+    upsertStaffRole, deleteStaffRole, getAllStaffRoles
 };

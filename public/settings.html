@@ -608,6 +608,8 @@
             loadUsers();
         }
 
+        let staffRolesBySid = {};
+
         async function loadStaff() {
             const staffLast = document.getElementById('staffLastUpdated');
             const staffList = document.getElementById('staffList');
@@ -620,6 +622,21 @@
                 if (!res.ok) return;
                 const data = await res.json();
                 const list = Array.isArray(data.staffList) ? data.staffList : [];
+
+                // Подтягиваем роли для выплат (level >=3, редактирование только с 5 уровня).
+                staffRolesBySid = {};
+                try {
+                    const rRes = await fetch('/api/staff-roles', { headers: authHeaders() });
+                    if (rRes.ok) {
+                        const rData = await rRes.json().catch(() => ({}));
+                        (Array.isArray(rData.roles) ? rData.roles : []).forEach(r => {
+                            const sid = String(r.steam_id || '').trim();
+                            const role = String(r.role || '').trim().toUpperCase();
+                            if (sid && role) staffRolesBySid[sid] = role;
+                        });
+                    }
+                } catch (_) {}
+
                 const lastUpdated = data.lastUpdated ? new Date(data.lastUpdated).toLocaleString('ru') : '—';
                 if (staffLast) staffLast.textContent = `Обновлено: ${lastUpdated} (${list.length} чел.)`;
 
@@ -631,6 +648,18 @@
 
                 staffList.innerHTML = list.map(s => {
                     const avatar = (s.avatar_full || defaultAvatar).replace(/^http:\/\//i, 'https://');
+                    const sid = String(s.steamid || '').trim();
+                    const canEditRole = currentUserLevel >= 5 && sid;
+                    const roleMap = { AUTO: 'Авто', ML: 'МЛ', M: 'М', STM: 'СТМ', STA: 'СТА', GA: 'ГА' };
+                    const currentRole = (staffRolesBySid[sid] || 'AUTO').toUpperCase();
+                    const roleSelectHtml = canEditRole
+                        ? `<div class="mt-1 flex items-center gap-2">
+                                <select onchange="changeStaffRole('${esc(sid)}', this.value)" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-gray-200 focus:outline-none focus:border-indigo-500 cursor-pointer">
+                                    ${Object.entries(roleMap).map(([value, label]) => `<option value="${value}" ${value === currentRole ? 'selected' : ''}>${label}</option>`).join('')}
+                                </select>
+                                <span class="text-[10px] text-gray-500">Роль для выплат</span>
+                           </div>`
+                        : '';
                     return `
                         <div class="flex items-center gap-3 p-2 bg-white/[0.03] rounded-lg">
                             <img src="${avatar}" class="w-9 h-9 rounded-full" onerror="this.src='${defaultAvatar}'">
@@ -638,12 +667,35 @@
                                 <div class="text-white text-sm font-semibold truncate">${esc(s.name || '—')}</div>
                                 <div class="text-gray-500 text-xs font-mono">${esc(s.steamid || '')}</div>
                                 <div class="text-gray-400 text-xs">${esc(s.group_display_name || '')}</div>
+                                ${roleSelectHtml}
                             </div>
                         </div>
                     `;
                 }).join('');
             } catch (_) {
                 if (staffLast) staffLast.textContent = 'Ошибка загрузки';
+            }
+        }
+
+        async function changeStaffRole(steamId, role) {
+            const sid = String(steamId || '').trim();
+            const r = String(role || '').trim().toUpperCase();
+            if (!sid) return;
+            try {
+                const res = await fetch('/api/staff-roles', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ steamId: sid, role: r })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) {
+                    alert(data.error || 'Не удалось сохранить роль');
+                    return;
+                }
+                if (r === 'AUTO') delete staffRolesBySid[sid];
+                else staffRolesBySid[sid] = r;
+            } catch (_) {
+                alert('Ошибка сохранения роли');
             }
         }
 

@@ -1884,6 +1884,51 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // --- Staff roles for payouts (ГА / СТА / СТМ / М / МЛ) ---
+    if (req.url === '/api/staff-roles' && req.method === 'GET') {
+        const session = getSessionFromReq(req);
+        if (!session || session.level < USER_LEVEL_WHITELIST) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Недостаточно прав' }));
+            return;
+        }
+        const roles = db.getAllStaffRoles();
+        sendJson(res, 200, { roles });
+        return;
+    }
+    if (req.url === '/api/staff-roles' && req.method === 'POST') {
+        const session = getSessionFromReq(req);
+        if (!session || session.level < USER_LEVEL_SUPER) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Недостаточно прав (нужен уровень 5)' }));
+            return;
+        }
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const { steamId, role } = JSON.parse(body || '{}');
+                const sid = String(steamId || '').trim();
+                const rawRole = String(role || '').trim().toUpperCase();
+                const allowed = new Set(['GA', 'STA', 'STM', 'M', 'ML', 'AUTO']);
+                if (!sid || !allowed.has(rawRole)) {
+                    console.warn('[StaffRoles] BAD_REQUEST steamId=', sid, 'role=', rawRole);
+                    sendError(res, 400, 'BAD_REQUEST', 'Некорректные данные');
+                    return;
+                }
+                if (rawRole === 'AUTO') {
+                    db.deleteStaffRole(sid);
+                } else {
+                    db.upsertStaffRole(sid, rawRole, session.userId, session.username);
+                }
+                sendJson(res, 200, { ok: true });
+            } catch (_) {
+                sendError(res, 400, 'INVALID_JSON', 'Invalid JSON');
+            }
+        });
+        return;
+    }
+
     // --- Получение уровня текущего пользователя по сессии ---
     if (req.url === '/api/me' && req.method === 'GET') {
         const session = requireSession(req, res, 0);
@@ -2586,6 +2631,78 @@ const server = http.createServer(async (req, res) => {
             staffStatsData: staffPunishmentsCache.dataBySteamId,
             lastUpdated: staffPunishmentsCache.lastUpdated
         }));
+        return;
+    }
+
+    // --- Staff tickets (ручной ввод) ---
+    if (req.url.startsWith('/api/staff-tickets') && (req.method === 'GET' || req.method === 'POST')) {
+        const session = getSessionFromReq(req);
+        if (!session) {
+            sendError(res, 401, 'UNAUTHORIZED', 'Не авторизован');
+            return;
+        }
+        if (session.level < USER_LEVEL_WHITELIST) {
+            sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав (нужен уровень 3+)');
+            return;
+        }
+
+        const parsed = new URL(req.url || '', `http://${req.headers.host || 'localhost'}`);
+        const ym = String(parsed.searchParams.get('ym') || '').trim();
+        if (!/^\d{4}-\d{2}$/.test(ym)) {
+            sendError(res, 400, 'BAD_YM', 'Нужен ym=YYYY-MM');
+            return;
+        }
+
+        if (req.method === 'GET') {
+            const rows = db.getStaffTicketsByMonth(ym);
+            sendJson(res, 200, { ym, tickets: rows });
+            return;
+        }
+
+        // POST: { steamId, tickets }
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const payload = JSON.parse(body || '{}');
+                const steamId = String(payload.steamId || '').trim();
+                const tickets = payload.tickets;
+                if (!/^\d{5,}$/.test(steamId)) {
+                    sendError(res, 400, 'BAD_STEAMID', 'Некорректный steamId');
+                    return;
+                }
+                const ok = db.upsertStaffTickets(steamId, ym, tickets, session.userId, session.username);
+                if (!ok) {
+                    sendError(res, 400, 'BAD_REQUEST', 'Не удалось сохранить');
+                    return;
+                }
+                sendJson(res, 200, { ok: true });
+            } catch (_) {
+                sendError(res, 400, 'BAD_JSON', 'Некорректный JSON');
+            }
+        });
+        return;
+    }
+
+    // --- Protected JS module: staff stats & payroll ---
+    if (req.url === '/secure/staff-stats-secure.js' && req.method === 'GET') {
+        const session = getSessionFromReq(req);
+        if (!session) {
+            sendError(res, 401, 'UNAUTHORIZED', 'Не авторизован');
+            return;
+        }
+        if (session.level < USER_LEVEL_WHITELIST) {
+            sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав (нужен уровень 3+)');
+            return;
+        }
+        try {
+            const p = path.join(__dirname, 'secure', 'staff-stats-secure.js');
+            const js = fs.readFileSync(p, 'utf8');
+            res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-store' });
+            res.end(js);
+        } catch (e) {
+            sendError(res, 500, 'READ_FAILED', 'Не удалось загрузить модуль');
+        }
         return;
     }
 
