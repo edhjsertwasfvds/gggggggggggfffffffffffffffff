@@ -555,6 +555,8 @@ function saveSession(token, userId, username, displayName, level, expiresAt, cre
 }
 function getSessionFromDb(token) { return db.prepare('SELECT * FROM sessions WHERE token = ?').get(token); }
 function deleteSessionFromDb(token) { db.prepare('DELETE FROM sessions WHERE token = ?').run(token); }
+function deleteSessionsByUserId(userId) { return db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId).changes > 0; }
+function deleteAllSessionsDb() { db.prepare('DELETE FROM sessions').run(); }
 function cleanupExpiredSessionsDb() { return db.prepare('DELETE FROM sessions WHERE expires_at < ?').run(Date.now()).changes; }
 function getActiveSessionsFromDb() { return db.prepare('SELECT * FROM sessions WHERE expires_at > ?').all(Date.now()); }
 
@@ -570,7 +572,7 @@ module.exports = {
     createUser, verifyUser, getUserById, getAllUsers, deleteUser, updateUserLevel, updateUserPassword, updateUserSteamId, getUserCount, deleteAllUsers, restoreUsersFromEnv,
     ensureUserLauncherApiKey, getUserByLauncherApiKey,
     createInviteCode, useInviteCode, validateInviteCode, getInviteCodes, deleteInviteCode,
-    saveSession, getSessionFromDb, deleteSessionFromDb, cleanupExpiredSessionsDb, getActiveSessionsFromDb,
+    saveSession, getSessionFromDb, deleteSessionFromDb, deleteSessionsByUserId, deleteAllSessionsDb, cleanupExpiredSessionsDb, getActiveSessionsFromDb,
     upsertStaffTickets, getStaffTicketsByMonth, getStaffTicketsOne,
     upsertStaffRole, deleteStaffRole, getAllStaffRoles
 };

@@ -17,7 +17,9 @@ const state = {
     customFiltersOpen: false,
     filtersMenuOpen: false,
     columnsMenuOpen: false,
-    punishments: { count: 0, list: [], loading: false, lastSteamId: '', selectedMonth: null, view: 'list', staffList: null, staffStatsRows: null, staffStatsLoading: false, staffStatsData: {}, staffStatsProgress: null, staffTicketsYm: null, staffTicketsBySid: {}, staffTicketsLoading: false, staffRolesBySid: {}, staffRolesLoading: false, staffPayConfig: {}, secureLoaded: false, staffTableMode: 'new', statsPeriodMode: 'month', selectedWeekStart: null, lastLoadedAt: 0, lastSource: '' }
+    punishments: { count: 0, list: [], loading: false, lastSteamId: '', selectedMonth: null, view: 'list', staffList: null, staffStatsRows: null, staffStatsLoading: false, staffStatsData: {}, staffStatsProgress: null, staffTicketsYm: null, staffTicketsBySid: {}, staffTicketsLoading: false, staffRolesBySid: {}, staffRolesLoading: false, staffPayConfig: {}, secureLoaded: false, staffTableMode: 'new', statsPeriodMode: 'month', selectedWeekStart: null, lastLoadedAt: 0, lastSource: '' },
+    changesTab: 'roles',
+    rolesEditor: { authMode: 'cookie', accessToken: '', steamid: '', name: '', adminId: '', roleName: 'Модератор', log: [] }
 };
 
 let ws = null;
@@ -527,6 +529,151 @@ function renderCounts() {
     set('nicknamesCount', fromStats?.nicknames ?? 0);
 }
 
+const FEAR_ROLE_BY_GROUP_ID = {
+    1: 'Модератор',
+    2: 'Admin1Day',
+    3: 'STAFF',
+    4: 'Админ',
+    5: 'STMODER',
+    6: 'MLMODER',
+    7: 'STADMIN',
+    8: 'GLADMIN',
+    9: 'ADMIN+',
+    10: 'MEDIA'
+};
+const FEAR_GROUP_ID_BY_ROLE = Object.fromEntries(Object.entries(FEAR_ROLE_BY_GROUP_ID).map(([k, v]) => [v, Number(k)]));
+
+function buildChangesLayout(activeTab, mainHtml) {
+    const rolesActive = activeTab === 'roles';
+    return `
+        <div class="flex gap-4">
+            <div class="w-[180px] shrink-0">
+                <div class="rounded-xl border border-white/10 bg-white/[0.03] p-2 space-y-1">
+                    <button type="button" onclick="setChangesTab('roles')" class="w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${rolesActive ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-500/20' : 'bg-white/5 text-gray-400 hover:bg-white/10 border border-transparent'}">Роли</button>
+                    <button type="button" onclick="openSidePanel('Наказания')" class="w-full text-left px-3 py-2 rounded-lg text-sm font-semibold transition-colors bg-white/5 text-gray-400 hover:bg-white/10 border border-transparent">Наказания</button>
+                </div>
+                <div class="mt-2 text-[11px] text-gray-500 px-1">Доступ: с 3 уровня</div>
+            </div>
+            <div class="min-w-0 flex-1">${mainHtml}</div>
+        </div>
+    `;
+}
+
+function setChangesTab(tab) {
+    state.changesTab = tab === 'punishments' ? 'punishments' : 'roles';
+    if (state.openCategory === 'Изменения' && state.changesTab === 'punishments') {
+        loadPunishmentsStaffList();
+        prefetchPunishmentsSummary();
+    }
+    scheduleRenderPanel();
+}
+
+function appendRolesLog(line) {
+    const s = `[${new Date().toLocaleTimeString('ru')}] ${line}`;
+    state.rolesEditor.log.push(s);
+    if (state.rolesEditor.log.length > 120) state.rolesEditor.log = state.rolesEditor.log.slice(-120);
+}
+
+function matchFearAdminScore(admin, key) {
+    const q = String(key || '').trim();
+    if (!q) return -1;
+    const sid = String(admin?.steamid || '').trim();
+    const name = String(admin?.name || '').trim();
+    const ql = q.toLowerCase();
+    const nl = name.toLowerCase();
+    if (sid === q) return 1000;
+    if (name === q) return 900;
+    if (nl === ql) return 800;
+    if (/^\d{8,}$/.test(q) && sid.includes(q)) return 700;
+    if (ql && nl.includes(ql)) return 600 + Math.min(100, ql.length);
+    return -1;
+}
+
+function syncRolesEditorFromInputs() {
+    const get = (id) => document.getElementById(id);
+    state.rolesEditor.accessToken = String(get('fearAccessToken')?.value || '').trim();
+    state.rolesEditor.authMode = String(get('fearAuthMode')?.value || 'cookie').toLowerCase() === 'bearer' ? 'bearer' : 'cookie';
+    state.rolesEditor.steamid = String(get('fearSteamid')?.value || '').trim();
+    state.rolesEditor.name = String(get('fearName')?.value || '').trim();
+    state.rolesEditor.adminId = String(get('fearAdminId')?.value || '').trim();
+    state.rolesEditor.roleName = String(get('fearRoleName')?.value || 'Модератор').trim();
+}
+
+async function fearFindAdminId() {
+    syncRolesEditorFromInputs();
+    const token = state.rolesEditor.accessToken;
+    const key = state.rolesEditor.steamid || state.rolesEditor.name;
+    if (!token) { alert('Вставь access token'); return; }
+    if (!key) { alert('Заполни steamid или name'); return; }
+    appendRolesLog('Запрос списка админов...');
+    scheduleRenderPanel();
+    try {
+        const res = await fetch('/api/fear/admins/find', {
+            method: 'POST',
+            headers: apiAuthHeaders(),
+            body: JSON.stringify({ accessToken: token, authMode: state.rolesEditor.authMode })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.error) {
+            appendRolesLog('Ошибка: ' + (data.error || res.status));
+            scheduleRenderPanel();
+            return;
+        }
+        const payload = data.payload;
+        const list = Array.isArray(payload) ? payload : (Array.isArray(payload?.admins) ? payload.admins : (Array.isArray(payload?.data) ? payload.data : []));
+        const scored = list
+            .filter(a => a && typeof a === 'object')
+            .map(a => ({ s: matchFearAdminScore(a, key), a }))
+            .filter(x => x.s >= 0)
+            .sort((x, y) => y.s - x.s);
+        if (!scored.length) {
+            appendRolesLog('Совпадений не найдено');
+            scheduleRenderPanel();
+            return;
+        }
+        const top = scored[0].a;
+        const adminId = top.admin_id ?? top.id ?? '';
+        state.rolesEditor.adminId = String(adminId || '');
+        state.rolesEditor.steamid = String(top.steamid || state.rolesEditor.steamid || '');
+        state.rolesEditor.name = String(top.name || state.rolesEditor.name || '');
+        const gid = Number(top.group_id ?? top.groupId ?? 0);
+        if (FEAR_ROLE_BY_GROUP_ID[gid]) state.rolesEditor.roleName = FEAR_ROLE_BY_GROUP_ID[gid];
+        appendRolesLog(`Найден: id=${state.rolesEditor.adminId} | ${state.rolesEditor.name} | ${state.rolesEditor.steamid}`);
+        scheduleRenderPanel();
+    } catch (e) {
+        appendRolesLog('Ошибка: ' + String(e?.message || e));
+        scheduleRenderPanel();
+    }
+}
+
+async function fearApplyRoleEdit() {
+    syncRolesEditorFromInputs();
+    const token = state.rolesEditor.accessToken;
+    const adminId = parseInt(state.rolesEditor.adminId, 10);
+    const groupId = FEAR_GROUP_ID_BY_ROLE[state.rolesEditor.roleName];
+    if (!token) { alert('Вставь access token'); return; }
+    if (!Number.isFinite(adminId)) { alert('Нужен корректный admin_id'); return; }
+    if (!groupId) { alert('Выбери роль'); return; }
+    if (!state.rolesEditor.steamid || !state.rolesEditor.name) { alert('Заполни steamid и name'); return; }
+    const payload = { admin_id: adminId, group_id: groupId, steamid: state.rolesEditor.steamid, name: state.rolesEditor.name };
+    appendRolesLog('Отправка /admins/edit...');
+    scheduleRenderPanel();
+    try {
+        const res = await fetch('/api/fear/admins/edit', {
+            method: 'POST',
+            headers: apiAuthHeaders(),
+            body: JSON.stringify({ accessToken: token, authMode: state.rolesEditor.authMode, payload })
+        });
+        const data = await res.json().catch(() => ({}));
+        appendRolesLog(`Статус: ${res.status}`);
+        appendRolesLog(JSON.stringify(data));
+        scheduleRenderPanel();
+    } catch (e) {
+        appendRolesLog('Ошибка: ' + String(e?.message || e));
+        scheduleRenderPanel();
+    }
+}
+
 function renderPanel() {
     const content = document.getElementById('panelContent');
     const title = document.getElementById('panelTitle');
@@ -585,6 +732,33 @@ function renderPanel() {
             staggerRows(content);
             requestAccountAgeFor(merged, 'steamId');
         }
+        return;
+    }
+
+    if (cat === 'Изменения' && state.changesTab === 'roles') {
+        const roleOptions = Object.values(FEAR_ROLE_BY_GROUP_ID).map(role =>
+            `<option value="${escapeHtml(role)}" ${state.rolesEditor.roleName === role ? 'selected' : ''}>${escapeHtml(role)}</option>`
+        ).join('');
+        const main = `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <input id="fearAccessToken" type="text" value="${escapeHtml(state.rolesEditor.accessToken)}" placeholder="access_token" class="md:col-span-2 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-indigo-500">
+                <select id="fearAuthMode" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500">
+                    <option value="cookie" ${state.rolesEditor.authMode === 'cookie' ? 'selected' : ''}>Cookie</option>
+                    <option value="bearer" ${state.rolesEditor.authMode === 'bearer' ? 'selected' : ''}>Bearer</option>
+                </select>
+                <select id="fearRoleName" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500">${roleOptions}</select>
+                <input id="fearSteamid" type="text" value="${escapeHtml(state.rolesEditor.steamid)}" placeholder="steamid" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-indigo-500">
+                <input id="fearName" type="text" value="${escapeHtml(state.rolesEditor.name)}" placeholder="name" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-indigo-500">
+                <input id="fearAdminId" type="text" value="${escapeHtml(state.rolesEditor.adminId)}" placeholder="admin_id (авто)" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm font-mono focus:outline-none focus:border-indigo-500">
+            </div>
+            <div class="flex flex-wrap gap-2 mb-3">
+                <button type="button" onclick="fearFindAdminId()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold rounded-lg">Найти ID</button>
+                <button type="button" onclick="fearApplyRoleEdit()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-lg">Применить роль</button>
+            </div>
+            <div class="rounded-lg border border-white/10 bg-black/20 p-3 h-[320px] overflow-y-auto text-xs font-mono text-gray-300 whitespace-pre-wrap">${escapeHtml((state.rolesEditor.log || []).join('\n') || 'Лог пуст')}</div>
+        `;
+        title.textContent = 'Изменения';
+        content.innerHTML = buildChangesLayout('roles', main);
         return;
     }
 
@@ -2164,6 +2338,9 @@ function openSidePanel(category) {
     }
     const switching = state.openCategory && state.openCategory !== category && panel.classList.contains('show');
     state.openCategory = category;
+    if (category === 'Изменения' && !state.changesTab) {
+        state.changesTab = 'roles';
+    }
     if (category === 'Лаунчер') {
         const u = getCurrentUser();
         if (u && u.sessionToken) {
@@ -3162,6 +3339,11 @@ function applyLevelRestrictions(level) {
     }
     // «Для лаунчера» — только уровень 5 (суперадмин)
     const launcherNav = document.getElementById('navItemLauncher');
+    const changesNav = document.getElementById('navItemChanges');
+    if (changesNav) {
+        if (level >= 3) changesNav.classList.remove('hidden');
+        else changesNav.classList.add('hidden');
+    }
     if (launcherNav) {
         if (level >= 5) launcherNav.classList.remove('hidden');
         else launcherNav.classList.add('hidden');

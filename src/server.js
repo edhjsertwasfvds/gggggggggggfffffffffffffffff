@@ -141,6 +141,43 @@ const staffStatsService = require('./services/staffStats');
 const moderatorPlayersSnapshot = require('./services/moderatorPlayersSnapshot');
 const { attachWss } = require('./ws');
 
+const FEAR_API_HOST = 'api.fearproject.ru';
+const FEAR_ADMINS_LIST_PATH = '/admins/';
+const FEAR_ADMINS_EDIT_PATH = '/admins/edit';
+
+function fearAdminsRequest(pathname, method, headers = {}, body = null) {
+    return new Promise((resolve, reject) => {
+        const payload = body ? JSON.stringify(body) : null;
+        const req = https.request({
+            protocol: 'https:',
+            hostname: FEAR_API_HOST,
+            path: pathname,
+            method,
+            headers: {
+                Accept: '*/*',
+                'Content-Type': 'application/json',
+                Origin: 'https://fearproject.ru',
+                Referer: 'https://fearproject.ru/',
+                'User-Agent': 'FearPanel/1.0',
+                ...headers,
+                ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {})
+            }
+        }, (resp) => {
+            let raw = '';
+            resp.on('data', (chunk) => { raw += chunk; });
+            resp.on('end', () => {
+                let json = null;
+                try { json = raw ? JSON.parse(raw) : null; } catch (_) {}
+                resolve({ statusCode: resp.statusCode || 500, bodyText: raw, bodyJson: json });
+            });
+        });
+        req.on('error', reject);
+        req.setTimeout(25000, () => req.destroy(new Error('Fear API timeout')));
+        if (payload) req.write(payload);
+        req.end();
+    });
+}
+
 // База данных инициализируется асинхронно перед запуском сервера (см. startServer)
 
 if (!STEAM_API_KEY) {
@@ -1472,6 +1509,8 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({ error: 'Нельзя удалить пользователя с таким же или выше уровнем' }));
             return;
         }
+        // Сначала инвалидируем все сессии пользователя, затем удаляем из БД.
+        try { db.deleteSessionsByUserId(userId); } catch (_) {}
         db.deleteUser(userId);
         console.log(`[Auth] Удалён пользователь: ${target?.username || userId} (by ${session.username})`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1487,6 +1526,8 @@ const server = http.createServer(async (req, res) => {
             res.end(JSON.stringify({ error: 'Недостаточно прав (нужен уровень 5)' }));
             return;
         }
+        // Сбрасываем пользователей и их сессии, чтобы никто не оставался залогинен.
+        try { db.deleteAllSessionsDb(); } catch (_) {}
         db.deleteAllUsers();
         console.log(`[Auth] Сброшены ВСЕ пользователи (by ${session.username})`);
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1781,6 +1822,67 @@ const server = http.createServer(async (req, res) => {
             staffList: staffPunishmentsCache.staffList,
             lastUpdated: staffPunishmentsCache.staffListLastUpdated
         }));
+        return;
+    }
+
+    if (req.url === '/api/fear/admins/find' && req.method === 'POST') {
+        const session = requireSession(req, res, 3);
+        if (!session) return;
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const parsed = JSON.parse(body || '{}');
+                const accessToken = String(parsed.accessToken || '').trim();
+                const authMode = String(parsed.authMode || 'cookie').toLowerCase() === 'bearer' ? 'bearer' : 'cookie';
+                if (!accessToken) {
+                    sendError(res, 400, 'ACCESS_TOKEN_REQUIRED', 'Укажите access token');
+                    return;
+                }
+                const h = authMode === 'bearer'
+                    ? { Authorization: `Bearer ${accessToken}` }
+                    : { Cookie: `access_token=${accessToken}` };
+                const apiRes = await fearAdminsRequest(FEAR_ADMINS_LIST_PATH, 'GET', h);
+                if (apiRes.statusCode >= 400) {
+                    sendJson(res, apiRes.statusCode, { error: apiRes.bodyText || 'Fear API error' });
+                    return;
+                }
+                sendJson(res, 200, { payload: apiRes.bodyJson ?? apiRes.bodyText });
+            } catch (err) {
+                sendError(res, 500, 'FEAR_PROXY_ERROR', err.message || 'Fear API request failed');
+            }
+        });
+        return;
+    }
+
+    if (req.url === '/api/fear/admins/edit' && req.method === 'POST') {
+        const session = requireSession(req, res, 3);
+        if (!session) return;
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', async () => {
+            try {
+                const parsed = JSON.parse(body || '{}');
+                const accessToken = String(parsed.accessToken || '').trim();
+                const authMode = String(parsed.authMode || 'cookie').toLowerCase() === 'bearer' ? 'bearer' : 'cookie';
+                const payload = parsed.payload && typeof parsed.payload === 'object' ? parsed.payload : null;
+                if (!accessToken) {
+                    sendError(res, 400, 'ACCESS_TOKEN_REQUIRED', 'Укажите access token');
+                    return;
+                }
+                if (!payload) {
+                    sendError(res, 400, 'INVALID_PAYLOAD', 'Некорректный payload');
+                    return;
+                }
+                const h = authMode === 'bearer'
+                    ? { Authorization: `Bearer ${accessToken}` }
+                    : { Cookie: `access_token=${accessToken}` };
+                const apiRes = await fearAdminsRequest(FEAR_ADMINS_EDIT_PATH, 'POST', h, payload);
+                sendJson(res, apiRes.statusCode, apiRes.bodyJson ?? { raw: apiRes.bodyText });
+            } catch (err) {
+                sendError(res, 500, 'FEAR_PROXY_ERROR', err.message || 'Fear API request failed');
+            }
+        });
         return;
     }
     // --- Maintenance banner (public) ---

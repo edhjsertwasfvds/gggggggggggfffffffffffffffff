@@ -70,9 +70,12 @@ function getSession(sessionToken) {
     // чтобы изменения прав применялись без перелогина.
     try {
         const user = db.getUserById(session.userId);
-        if (user && Number.isFinite(Number(user.level))) {
-            session.level = Number(user.level);
+        if (!user) {
+            // Пользователь удалён → принудительно инвалидируем сессию.
+            db.deleteSessionFromDb(sessionToken);
+            return null;
         }
+        if (Number.isFinite(Number(user.level))) session.level = Number(user.level);
     } catch (_) {}
 
     db.saveSession(sessionToken, session.userId, session.username, session.displayName, session.level, session.expiresAt, session.createdAt, Date.now());

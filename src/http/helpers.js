@@ -61,6 +61,8 @@ function getAllowedMethodsForApiPath(pathname) {
     if (pathname === '/api/active-reports') return 'GET, OPTIONS';
     if (pathname === '/api/moderator/players') return 'GET, OPTIONS';
     if (pathname === '/api/launcher/players') return 'GET, OPTIONS';
+    if (pathname === '/api/fear/admins/find') return 'POST, OPTIONS';
+    if (pathname === '/api/fear/admins/edit') return 'POST, OPTIONS';
 
     if (pathname.startsWith('/api/check/')) return 'GET, OPTIONS';
     if (pathname.startsWith('/api/steam-friends/')) return 'GET, OPTIONS';

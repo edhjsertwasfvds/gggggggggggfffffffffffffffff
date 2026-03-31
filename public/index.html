@@ -214,6 +214,15 @@
             color: #c7d2fe;
             box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.25);
         }
+        /* Fix browser default white dropdown menus */
+        select, select option {
+            background-color: #0b1224;
+            color: #e5e7eb;
+        }
+        select option:checked {
+            background-color: rgba(99, 102, 241, 0.25);
+            color: #e0e7ff;
+        }
     </style>
 </head>
 <body class="bg-[#09090b] text-white min-h-screen w-full relative overflow-hidden selection:bg-[#5865F2] selection:text-white">
@@ -306,6 +315,18 @@
                 </div>
                 <div class="h-8 px-3.5 rounded-full bg-amber-500/10 flex items-center justify-center border border-amber-500/20 shrink-0">
                     <span id="suspiciousCount" class="text-amber-400 text-[14px] font-bold tabular-nums">0</span>
+                </div>
+            </div>
+
+            <div id="navItemChanges" class="dropdown-item px-4 py-3.5 flex items-center justify-between cursor-pointer hidden" data-category="Изменения" onclick="openSidePanel('Изменения', 'indigo')">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-indigo-500/10 flex items-center justify-center shrink-0">
+                        <i class="ph ph-pencil-simple text-indigo-300 text-xl"></i>
+                    </div>
+                    <span class="text-[15px] font-semibold text-gray-100">Изменения</span>
+                </div>
+                <div class="h-8 px-3.5 rounded-full bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20 shrink-0">
+                    <i class="ph ph-arrow-right text-indigo-300 text-sm"></i>
                 </div>
             </div>
 

@@ -54,9 +54,12 @@ function attachWss({
                 } else if (data.type === 'get_vac_bans') {
                     sendVACBans(ws);
                 } else if (data.type === 'get_yooma_bans') {
-                    sendYoomaBans(ws, data.userLevel || 0);
+                    // Никогда не доверяем userLevel от клиента — берём из серверной сессии.
+                    const level = sid && Number.isFinite(Number(sid.level)) ? Number(sid.level) : 0;
+                    sendYoomaBans(ws, level);
                 } else if (data.type === 'get_suspicious_bans') {
-                    sendSuspiciousBans(ws, data.userLevel || 0);
+                    const level = sid && Number.isFinite(Number(sid.level)) ? Number(sid.level) : 0;
+                    sendSuspiciousBans(ws, level);
                 } else if (data.type === 'get_all_players') {
                     sendAllPlayers(ws);
                 } else if (data.type === 'get_faceit_levels') {
