@@ -3293,7 +3293,7 @@ const server = http.createServer(async (req, res) => {
                     "img-src 'self' https: data:",
                     "font-src 'self' https: data:",
                     "style-src 'self' 'unsafe-inline' https:",
-                    "script-src 'self' 'unsafe-inline'",
+                    "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
                     "connect-src 'self' https:"
                 ].join('; ')
             );

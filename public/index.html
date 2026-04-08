@@ -306,12 +306,6 @@
         body.theme-crimson .month-select-menu { border-color: rgba(244, 63, 94, .25); background: rgba(36, 18, 24, .98); }
         body.theme-graphite .month-select-menu { border-color: rgba(161, 161, 170, .24); background: rgba(23, 24, 28, .98); }
 
-        /* Anti-flicker: hide shell until session init */
-        body.app-preload #loginButton {
-            opacity: 0 !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-        }
         /* Hide admin panel during preload to avoid flash before session init */
         body.app-preload #adminPanel {
             opacity: 0 !important;
