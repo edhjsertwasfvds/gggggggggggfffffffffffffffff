@@ -7,7 +7,7 @@ const state = {
     vac:   { loading: false, players: [] },
     yooma: { loading: false, players: [] },
     suspicious: { loading: false, players: [] },
-    allPlayers: { loading: false, players: [] },
+    allPlayers: { loading: true, players: [] },
     faceitLevels: {},
     openCategory: null,
     userLevel: 0,
@@ -409,6 +409,9 @@ function connectWebSocket() {
     ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
+        // #region agent log
+        fetch('http://127.0.0.1:7606/ingest/8eb7c909-b287-4c23-9dd2-e858bf2a1ece',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dcb7ae'},body:JSON.stringify({sessionId:'dcb7ae',runId:'pre-fix',hypothesisId:'H1',location:'public/script.js:ws.onopen',message:'WebSocket opened',data:{readyState:ws?.readyState ?? null,openCategory:state?.openCategory ?? null},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         if (reconnectTimer) {
             clearTimeout(reconnectTimer);
             reconnectTimer = null;
@@ -543,6 +546,9 @@ function applyMessage(data) {
             } else {
                 state.allPlayers.loading = true;
             }
+            // #region agent log
+            fetch('http://127.0.0.1:7606/ingest/8eb7c909-b287-4c23-9dd2-e858bf2a1ece',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dcb7ae'},body:JSON.stringify({sessionId:'dcb7ae',runId:'pre-fix',hypothesisId:'H2',location:'public/script.js:applyMessage(all_players)',message:'Received all_players payload',data:{loading:Boolean(data.loading),playersCount:Array.isArray(data.players)?data.players.length:-1,openCategory:state.openCategory},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             if (isPlayersCategoryOpen()) schedulePlayersPanelRefresh(false);
             break;
         case 'stats_update':
@@ -883,6 +889,9 @@ function renderPanel() {
 
     if (cat === 'Игроки' || cat === 'Опасные') {
         const { loading, players } = state.allPlayers;
+        // #region agent log
+        fetch('http://127.0.0.1:7606/ingest/8eb7c909-b287-4c23-9dd2-e858bf2a1ece',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dcb7ae'},body:JSON.stringify({sessionId:'dcb7ae',runId:'pre-fix',hypothesisId:'H3',location:'public/script.js:renderPanel(players)',message:'Render players panel branch',data:{loading:Boolean(loading),playersCount:Array.isArray(players)?players.length:-1,openCategory:cat},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         if (loading && players.length === 0) {
             content.innerHTML = '<p class="text-gray-400 text-sm text-center py-8">Загрузка игроков...</p>';
         } else {
@@ -2478,7 +2487,7 @@ function faceitLevelBadgeHtml(sid) {
     if (!fl || !fl.level) return '';
     const color = getFaceitLevelColor(fl.level);
     const url = fl.url || `https://www.faceit.com/en/players-modal/${sid}`;
-    return `<a href="${url}" target="_blank" id="faceit-${sid}" class="inline-flex items-center hover:opacity-80 transition-opacity" title="Faceit Lvl ${fl.level} (${fl.elo} ELO)"><img src="/images/lvl${fl.level}.svg" class="w-4.5 h-4.5"></a>`;
+    return `<a href="${url}" target="_blank" id="faceit-${sid}" class="inline-flex items-center hover:opacity-80 transition-opacity" title="Faceit Lvl ${fl.level} (${fl.elo} ELO)"><img src="/images/lvl${fl.level}.svg" class="w-4.5 h-4.5" loading="eager" decoding="sync"></a>`;
 }
 
 function applyFaceitLevels() {
@@ -2488,7 +2497,7 @@ function applyFaceitLevels() {
             const color = getFaceitLevelColor(fl.level);
             el.style.background = `${color}20`;
             el.style.color = color;
-            el.innerHTML = `<img src="/images/lvl${fl.level}.svg" class="w-4.5 h-4.5">`;
+            el.innerHTML = `<img src="/images/lvl${fl.level}.svg" class="w-4.5 h-4.5" loading="eager" decoding="sync">`;
             el.title = `Faceit Lvl ${fl.level} (${fl.elo} ELO)`;
         }
     }
@@ -2507,6 +2516,9 @@ function copyLauncherDocText(elementId) {
 // ——— Панель: открыть/закрыть ———
 
 function openSidePanel(category) {
+    // #region agent log
+    fetch('http://127.0.0.1:7606/ingest/8eb7c909-b287-4c23-9dd2-e858bf2a1ece',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dcb7ae'},body:JSON.stringify({sessionId:'dcb7ae',runId:'pre-fix',hypothesisId:'H1',location:'public/script.js:openSidePanel',message:'openSidePanel called',data:{category,wsReadyState:ws?.readyState ?? null,currentOpenCategory:state?.openCategory ?? null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (category === 'Лаунчер' && getUserLevel() < 5) {
         return;
     }
@@ -2520,6 +2532,9 @@ function openSidePanel(category) {
     state.openCategory = category;
     if (category === 'Изменения' && !state.changesTab) {
         state.changesTab = 'roles';
+    }
+    if ((category === 'Игроки' || category === 'Опасные') && (!Array.isArray(state.allPlayers.players) || state.allPlayers.players.length === 0)) {
+        state.allPlayers.loading = true;
     }
     if (category === 'Лаунчер') {
         const u = getCurrentUser();
@@ -3125,7 +3140,7 @@ function processCheckData(checkData, steamId, forModal = false) {
     if (fc?.faceitLevel) {
         const flColor = getFaceitLevelColor(fc.faceitLevel);
         const faceitUrl = fc.faceitUrl || `https://www.faceit.com/en/players-modal/${steamId}`;
-        statsCards.push(`<a href="${faceitUrl}" target="_blank" class="${cardClass} block" title="Перейти в Faceit"><span class="text-gray-500">Faceit</span><div class="flex items-center gap-1 font-semibold mt-0.5" style="color:${flColor}"><img src="/images/lvl${fc.faceitLevel}.svg" class="w-4 h-4">Lvl ${fc.faceitLevel}${fc.faceitElo ? ` <span class="text-gray-500 text-[10px]">(${fc.faceitElo} ELO)</span>` : ''}</div></a>`);
+        statsCards.push(`<a href="${faceitUrl}" target="_blank" class="${cardClass} block" title="Перейти в Faceit"><span class="text-gray-500">Faceit</span><div class="flex items-center gap-1 font-semibold mt-0.5" style="color:${flColor}"><img src="/images/lvl${fc.faceitLevel}.svg" class="w-4 h-4" loading="eager" decoding="sync">Lvl ${fc.faceitLevel}${fc.faceitElo ? ` <span class="text-gray-500 text-[10px]">(${fc.faceitElo} ELO)</span>` : ''}</div></a>`);
     }
     const badges = [];
     if (adminGroup) badges.push(`<span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-xs font-semibold rounded-full">${adminGroup}</span>`);
@@ -3436,7 +3451,48 @@ async function checkUpdateNotice() {
 
 window.addEventListener('DOMContentLoaded', async () => {
     // Anti-flicker: reveal UI only after session init.
-    const revealUi = () => { try { document.body.classList.remove('app-preload'); } catch (_) {} };
+    const playEdgeEntrance = (el, fromX) => {
+        if (!el) return;
+        try {
+            // Skip if hidden by utility class.
+            if (el.classList && el.classList.contains('hidden')) return;
+            if (el.dataset && el.dataset.entrancePlayed === '1') return;
+            if (el.dataset) el.dataset.entrancePlayed = '1';
+            if (typeof el.animate === 'function') {
+                el.animate(
+                    [
+                        { opacity: 0, transform: `translateX(${fromX}px)` },
+                        { opacity: 1, transform: 'translateX(0)' }
+                    ],
+                    {
+                        duration: 860,
+                        easing: 'cubic-bezier(.18,.78,.22,1)',
+                        fill: 'both'
+                    }
+                );
+            } else {
+                el.style.transition = 'none';
+                el.style.opacity = '0';
+                el.style.transform = `translateX(${fromX}px)`;
+                void el.offsetWidth; // force reflow
+                el.style.transition = 'transform .86s cubic-bezier(.18,.78,.22,1), opacity .86s cubic-bezier(.18,.78,.22,1)';
+                el.style.opacity = '1';
+                el.style.transform = 'translateX(0)';
+            }
+        } catch (_) {}
+    };
+    const revealUi = () => {
+        try {
+            requestAnimationFrame(() => {
+                playEdgeEntrance(document.getElementById('leftNav'), -48);
+                playEdgeEntrance(document.getElementById('adminPanel'), 48);
+                const loginBtn = document.getElementById('loginButton');
+                if (loginBtn && loginBtn.style.display !== 'none') playEdgeEntrance(loginBtn, 48);
+                document.body.classList.remove('app-preload');
+                document.body.classList.add('app-ready');
+            });
+        } catch (_) {}
+    };
     const preloadTimer = setTimeout(revealUi, 2000);
     const path = window.location.pathname;
     if (path === '/auth' || path === '/auth/') {
@@ -3516,6 +3572,14 @@ window.addEventListener('DOMContentLoaded', async () => {
         clearTimeout(preloadTimer);
         revealUi();
         checkUpdateNotice();
+        setTimeout(() => {
+            try {
+                // #region agent log
+                fetch('http://127.0.0.1:7606/ingest/8eb7c909-b287-4c23-9dd2-e858bf2a1ece',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dcb7ae'},body:JSON.stringify({sessionId:'dcb7ae',runId:'pre-fix',hypothesisId:'H4',location:'public/script.js:DOMContentLoaded auto-open',message:'Attempt auto-open players',data:{openCategoryBefore:state?.openCategory ?? null},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+                if (!state.openCategory) openSidePanel('Игроки');
+            } catch (_) {}
+        }, 0);
     } catch (err) {
         clearTimeout(preloadTimer);
         revealUi();

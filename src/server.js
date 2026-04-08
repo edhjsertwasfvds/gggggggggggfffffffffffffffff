@@ -1342,16 +1342,6 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // Публичная конфигурация страницы авторизации (без секрета)
-    if (req.url === '/api/public-config' && req.method === 'GET') {
-        const supportUrl = String(process.env.AUTH_SUPPORT_URL || '').trim();
-        const supportLabel = String(process.env.AUTH_SUPPORT_LABEL || '').trim();
-        sendJson(res, 200, {
-            authSupportUrl: supportUrl || null,
-            authSupportLabel: supportLabel || null
-        });
-        return;
-    }
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', () => {
@@ -1385,6 +1375,17 @@ const server = http.createServer(async (req, res) => {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ error: 'Invalid JSON' }));
             }
+        });
+        return;
+    }
+
+    // Публичная конфигурация страницы авторизации (без секрета)
+    if (req.url === '/api/public-config' && req.method === 'GET') {
+        const supportUrl = String(process.env.AUTH_SUPPORT_URL || '').trim();
+        const supportLabel = String(process.env.AUTH_SUPPORT_LABEL || '').trim();
+        sendJson(res, 200, {
+            authSupportUrl: supportUrl || null,
+            authSupportLabel: supportLabel || null
         });
         return;
     }
@@ -3157,6 +3158,20 @@ const server = http.createServer(async (req, res) => {
     else if (urlPath === '/dashboard' || urlPath === '/dashboard/') fileRelPath = '/index.html';
     else if (urlPath === '/' || urlPath === '/home') fileRelPath = '/index.html';
 
+    // Guard: если пользователь не авторизован, не отдаём защищённые HTML страницы.
+    // Делается на сервере, чтобы работало даже если JS не загрузился.
+    const isHtmlPage = fileRelPath === '/index.html' || fileRelPath === '/settings.html' || fileRelPath === '/logs.html' || fileRelPath === '/whitelist.html';
+    if (isHtmlPage) {
+        const tokenFromCookie = getSessionTokenFromCookie(req.headers.cookie || '');
+        const session = tokenFromCookie ? auth.getSession(tokenFromCookie) : null;
+        if (!session) {
+            const next = rawUrlPath || '/';
+            res.writeHead(302, { Location: '/auth?next=' + encodeURIComponent(next) });
+            res.end();
+            return;
+        }
+    }
+
     // Convert to safe relative path inside publicDir
     const rel = fileRelPath.replace(/^\/+/, '');
     const absPath = path.resolve(publicDir, rel);
@@ -3716,6 +3731,9 @@ function sendAllPlayers(ws) {
     const cached = getCachedData('players');
     const defaultAvatar = 'https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_medium.jpg';
     if (!cached) {
+        // #region agent log
+        fetch('http://127.0.0.1:7606/ingest/8eb7c909-b287-4c23-9dd2-e858bf2a1ece',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dcb7ae'},body:JSON.stringify({sessionId:'dcb7ae',runId:'pre-fix',hypothesisId:'H5',location:'src/server.js:sendAllPlayers(no-cache)',message:'No cached players data, sending loading=true',data:{wsReadyState:ws?.readyState ?? null},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'all_players', players: [], loading: true }));
         }
@@ -3740,6 +3758,9 @@ function sendAllPlayers(ws) {
             whitelistAddedBy: wlEntry ? wlEntry.added_by_discord_id : null
         };
     }).filter(p => !p.whitelisted);
+    // #region agent log
+    fetch('http://127.0.0.1:7606/ingest/8eb7c909-b287-4c23-9dd2-e858bf2a1ece',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dcb7ae'},body:JSON.stringify({sessionId:'dcb7ae',runId:'pre-fix',hypothesisId:'H5',location:'src/server.js:sendAllPlayers(with-cache)',message:'Prepared all_players payload',data:{steamIdsCount:steamIds.size,playersCount:players.length,wsReadyState:ws?.readyState ?? null},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'all_players', players, loading: false }));
     }

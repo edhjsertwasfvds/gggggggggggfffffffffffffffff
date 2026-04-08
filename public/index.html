@@ -13,7 +13,19 @@
     <link rel="preload" as="style" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
     <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Preload critical local SVG assets so icons appear instantly -->
+    <link rel="preload" as="image" href="/images/lvl1.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/images/lvl2.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/images/lvl3.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/images/lvl4.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/images/lvl5.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/images/lvl6.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/images/lvl7.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/images/lvl8.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/images/lvl9.svg" type="image/svg+xml">
+    <link rel="preload" as="image" href="/images/lvl10.svg" type="image/svg+xml">
     <style>
+        html { zoom: 80%; }
         body {
             font-family: 'Inter', sans-serif;
             background-color: #09090b;
@@ -306,15 +318,28 @@
         body.theme-crimson .month-select-menu { border-color: rgba(244, 63, 94, .25); background: rgba(36, 18, 24, .98); }
         body.theme-graphite .month-select-menu { border-color: rgba(161, 161, 170, .24); background: rgba(23, 24, 28, .98); }
 
+        /* Надежный вход: transition от app-preload -> normal */
+        #leftNav, #adminPanel, #loginButton { will-change: transform, opacity; }
+        body.app-preload #leftNav {
+            opacity: 0;
+            transform: translateX(-48px);
+        }
+        body.app-preload #adminPanel,
+        body.app-preload #loginButton {
+            opacity: 0;
+            transform: translateX(48px);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #leftNav, #adminPanel, #loginButton { transition: none !important; }
+        }
+
         /* Anti-flicker: hide shell until session init */
         body.app-preload #loginButton {
-            opacity: 0 !important;
             visibility: hidden !important;
             pointer-events: none !important;
         }
         /* Hide admin panel during preload to avoid flash before session init */
         body.app-preload #adminPanel {
-            opacity: 0 !important;
             pointer-events: none !important;
         }
     </style>
@@ -462,7 +487,7 @@
         </nav>
     </aside>
 
-    <main id="sidePanel" class="absolute top-12 left-1/2 -translate-x-1/2 w-[min(1200px,calc(100vw-700px))] max-w-[1200px]">
+    <main id="sidePanel" class="absolute top-12 left-1/2 -translate-x-1/2 w-[min(1400px,calc(100vw-620px))] max-w-[1400px]">
         <div class="glass-panel rounded-2xl overflow-hidden">
             <header class="flex items-center justify-between px-6 py-4 border-b border-white/[0.08]">
                 <h2 id="panelTitle" class="text-white text-[16px] font-bold">Загрузка...</h2>
@@ -470,7 +495,7 @@
                     <i class="ph ph-x text-gray-400 text-lg"></i>
                 </button>
             </header>
-            <div id="panelContent" data-smooth-scroll-container="1" class="p-6 max-h-[80vh] overflow-y-auto hide-scrollbar">
+            <div id="panelContent" data-smooth-scroll-container="1" class="p-6 max-h-[94vh] overflow-y-auto hide-scrollbar">
                 <p class="text-gray-400 text-sm">Загрузка...</p>
             </div>
         </div>
@@ -539,19 +564,6 @@
                     <button type="button" onclick="resetLocalSettings()" class="px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-sm font-semibold">Сбросить</button>
                     <button type="button" onclick="saveLocalSettings()" class="px-3 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold">Сохранить</button>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="fixed left-4 bottom-4 z-40">
-        <div class="glass-panel px-3 py-2.5 rounded-xl border border-indigo-500/20 bg-indigo-500/10">
-            <p class="text-[11px] text-gray-400 mb-1">Нашли баг/ошибку? Напишите в:</p>
-            <div class="flex items-center gap-2">
-                <a href="https://discord.com/users/1398324386624180386" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold transition-colors">
-                    <i class="ph-fill ph-discord-logo text-sm"></i>
-                    Discord
-                </a>
-                <span class="text-xs text-indigo-200 font-semibold">@hrilockkk_42026</span>
             </div>
         </div>
     </div>

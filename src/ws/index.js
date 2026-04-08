@@ -61,6 +61,9 @@ function attachWss({
                     const level = sid && Number.isFinite(Number(sid.level)) ? Number(sid.level) : 0;
                     sendSuspiciousBans(ws, level);
                 } else if (data.type === 'get_all_players') {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7606/ingest/8eb7c909-b287-4c23-9dd2-e858bf2a1ece',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'dcb7ae'},body:JSON.stringify({sessionId:'dcb7ae',runId:'pre-fix-2',hypothesisId:'H6',location:'src/ws/index.js:onmessage(get_all_players)',message:'Received get_all_players request',data:{hasSession:Boolean(sid),sessionLevel:sid&&Number.isFinite(Number(sid.level))?Number(sid.level):0,wsReadyState:ws?.readyState??null},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
                     sendAllPlayers(ws);
                 } else if (data.type === 'get_faceit_levels') {
                     sendFaceitLevels(ws);
