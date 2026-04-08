@@ -47,7 +47,7 @@ async function ensureCsrfToken() {
     return __csrfToken;
 }
 
-async function appApiFetch(input, init) {
+async function apiFetch(input, init) {
     const opts = init ? { ...init } : {};
     const method = String((opts.method || 'GET')).toUpperCase();
     opts.credentials = 'same-origin';
@@ -70,7 +70,7 @@ window.App.session = {
     getCurrentUser,
     setCurrentUserPatch,
     getUserLevel,
-    apiFetch: appApiFetch,
+    apiFetch,
     ensureCsrfToken,
     clearAuthAndRedirectToAuth
 };
