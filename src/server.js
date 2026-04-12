@@ -2148,7 +2148,7 @@ const server = http.createServer(async (req, res) => {
         if (!bddStaffPg.isConfigured()) {
             sendJson(res, 503, {
                 code: 'BDD_PG_NOT_CONFIGURED',
-                error: 'Не задан BDD_DATABASE_URL или DATABASE_URL (подключи тот же Postgres, куда пишет VibeCodingBdd).'
+                error: 'Не задан DATABASE_URL или BDD_DATABASE_URL (на Railway добавь в этот же сервис переменную DATABASE_URL из плагина Postgres).'
             });
             return;
         }
@@ -2174,7 +2174,7 @@ const server = http.createServer(async (req, res) => {
                 /getaddrinfo ENOTFOUND/i.test(errMsg)
             ) {
                 msg =
-                    'Не удалось найти сервер БД по адресу из строки подключения (ошибка DNS). На Railway открой Postgres → скопируй полный DATABASE_URL в переменные веб-сервиса (BDD_DATABASE_URL или DATABASE_URL). Частая ошибка: в URL остаётся placeholder вроде хоста «base» или не подставилась ссылка вида ${{ Postgres.DATABASE_URL }}.';
+                    'Не удалось найти сервер БД по адресу из строки подключения (ошибка DNS). Задай на том же Railway-сервисе, где крутится сайт, переменную DATABASE_URL = ${{ Postgres.DATABASE_URL }} (или вставь полный URL из вкладки Postgres → Connect). Если заданы DATABASE_URL и BDD_DATABASE_URL, используется DATABASE_URL — удали ошибочный BDD_DATABASE_URL или приведи оба к одному URL. Частые ошибки: хост «base», неподставившаяся ${{ … }}, либо только .internal без доступа из контейнера.';
             } else if (errCode === 'ECONNREFUSED') {
                 msg = 'Подключение к PostgreSQL отклонено: проверь хост, порт и что база запущена.';
             }

@@ -3160,7 +3160,7 @@ async function runBddStaffSearch() {
         const data = await res.json().catch(() => ({}));
         if (res.status === 503) {
             out.innerHTML = `<p class="text-amber-300 text-sm leading-relaxed">${escapeHtml(data.error || 'База стаффа не подключена')}</p>
-                <p class="text-gray-500 text-xs mt-2 leading-relaxed">На Railway: в сервисе web добавь переменную DATABASE_URL или BDD_DATABASE_URL — тот же URL, что у Postgres (и что использует VibeCodingBdd).</p>`;
+                <p class="text-gray-500 text-xs mt-2 leading-relaxed">На Railway: в том же сервисе, где сайт, задай DATABASE_URL через ссылку на Postgres в Variables (например \${{ Postgres.DATABASE_URL }}). BDD_DATABASE_URL учитывается только если DATABASE_URL не задан.</p>`;
             return;
         }
         if (res.status === 403) {
