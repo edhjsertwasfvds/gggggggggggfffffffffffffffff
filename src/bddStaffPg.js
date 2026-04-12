@@ -53,30 +53,16 @@ async function searchBddStaff(rawQ) {
 
     const base = `
         SELECT
-            a.admin_id,
             a.steamid,
-            a.group_id,
             a.group_display_name,
             a.group_name,
-            a.immunity,
             a.is_frozen,
             a.avatar_full AS admin_avatar_full,
-            a.raw_json AS admin_raw_json,
-            a.updated_at AS admin_updated_at,
             p.name AS profile_name,
             p.last_activity,
-            p.avatar_full AS profile_avatar_full,
             p.discord_id,
             p.discord_nickname,
-            p.rank,
-            p.kills,
-            p.deaths,
-            p.playtime,
-            p.ban_is_banned,
-            p.vip_is_vip,
-            p.raw_json AS profile_raw_json,
-            p.updated_at AS profile_updated_at,
-            GREATEST(a.updated_at, COALESCE(p.updated_at, a.updated_at)) AS sort_ts
+            p.ban_is_banned
         FROM admins a
         LEFT JOIN profiles p ON p.steamid = a.steamid
     `;
@@ -93,16 +79,16 @@ async function searchBddStaff(rawQ) {
     } else {
         const esc = q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
         const like = `%${esc}%`;
+        // Только SteamID (подстрока), Discord ID (подстрока), Discord username = discord_nickname
         sql += ` WHERE (
             (p.discord_nickname IS NOT NULL AND p.discord_nickname ILIKE $1 ESCAPE '\\')
-            OR (p.name IS NOT NULL AND p.name ILIKE $1 ESCAPE '\\')
             OR a.steamid ILIKE $1 ESCAPE '\\'
             OR (p.discord_id IS NOT NULL AND p.discord_id ILIKE $1 ESCAPE '\\')
         ) `;
         params.push(like);
     }
 
-    sql += ' ORDER BY sort_ts DESC NULLS LAST LIMIT 50';
+    sql += ' ORDER BY GREATEST(a.updated_at, COALESCE(p.updated_at, a.updated_at)) DESC NULLS LAST LIMIT 50';
 
     const { rows } = await pool.query(sql, params);
     return rows;

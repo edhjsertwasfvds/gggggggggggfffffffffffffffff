@@ -3013,15 +3013,15 @@ function mergeAllPlayersWithBans(players) {
 function buildBddStaffSearchPanel() {
     return `
         <div class="space-y-4">
-            <p class="text-gray-400 text-sm leading-relaxed">Поиск по базе стаффа (PostgreSQL: <span class="text-gray-300 font-mono text-xs">admins</span> + <span class="text-gray-300 font-mono text-xs">profiles</span>, синхронизация VibeCodingBdd). Укажите SteamID64, Discord&nbsp;ID или ник Discord (username) / имя профиля.</p>
+            <p class="text-gray-400 text-sm leading-relaxed">Staff search (PostgreSQL <span class="text-gray-300 font-mono text-xs">admins</span> + <span class="text-gray-300 font-mono text-xs">profiles</span>). Search by <strong class="text-gray-300 font-normal">Steam ID</strong>, <strong class="text-gray-300 font-normal">Discord ID</strong>, or <strong class="text-gray-300 font-normal">Discord username</strong> only.</p>
             <div class="flex flex-wrap gap-2 items-end">
                 <div class="flex-1 min-w-[220px]">
-                    <label class="block text-gray-500 text-xs font-semibold mb-1">Запрос</label>
-                    <input type="text" id="bddStaffQuery" autocomplete="off" class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-sky-500/50" placeholder="SteamID / Discord ID / ник Discord" onkeydown="if(event.key==='Enter'){runBddStaffSearch()}">
+                    <label class="block text-gray-500 text-xs font-semibold mb-1">Query</label>
+                    <input type="text" id="bddStaffQuery" autocomplete="off" class="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-sky-500/50" placeholder="Steam ID, Discord ID, or username" onkeydown="if(event.key==='Enter'){runBddStaffSearch()}">
                 </div>
-                <button type="button" onclick="runBddStaffSearch()" class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold shrink-0">Найти</button>
+                <button type="button" onclick="runBddStaffSearch()" class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold shrink-0">Search</button>
             </div>
-            <div id="bddStaffResults" class="text-gray-500 text-sm min-h-[48px]">Введите запрос и нажмите «Найти».</div>
+            <div id="bddStaffResults" class="text-gray-500 text-sm min-h-[48px]">Enter a query and press Search.</div>
         </div>`;
 }
 
@@ -3029,115 +3029,57 @@ function formatBddStaffDate(v) {
     if (v == null || v === '') return '—';
     const d = new Date(v);
     if (Number.isNaN(d.getTime())) return '—';
-    return d.toLocaleString('ru');
+    return d.toLocaleString('en-GB');
 }
 
-function bddStaffScalarText(v) {
-    if (v === null || v === undefined || v === '') return '—';
-    if (typeof v === 'boolean') return v ? 'да' : 'нет';
-    if (v instanceof Date) return formatBddStaffDate(v);
-    const t = typeof v;
-    if (t === 'number' || t === 'bigint') return String(v);
-    if (t === 'string') return v;
-    return '—';
-}
-
-function bddStaffJsonBlock(raw) {
-    if (raw == null || raw === '') {
-        return '<p class="text-gray-500 text-xs py-1">Нет данных</p>';
-    }
-    let s;
-    try {
-        s = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
-    } catch (_) {
-        s = String(raw);
-    }
-    return `<pre class="mt-2 p-3 rounded-lg bg-black/40 border border-white/10 text-[11px] font-mono text-gray-300 overflow-x-auto max-h-72 overflow-y-auto whitespace-pre-wrap break-all">${escapeHtml(s)}</pre>`;
-}
-
-function bddStaffAvatarThumb(url) {
+function bddStaffAdminAvatar(url) {
     const u = String(url || '').trim();
-    if (!/^https?:\/\//i.test(u)) return '';
-    return `<img src="${escapeHtml(u)}" alt="" class="w-14 h-14 rounded-full border border-white/10 object-cover shrink-0" loading="lazy" onerror="this.style.display='none'">`;
+    const shell = 'w-16 h-16 rounded-full border border-white/10 overflow-hidden shrink-0 bg-white/[0.06]';
+    if (!/^https?:\/\//i.test(u)) {
+        return `<div class="${shell}"></div>`;
+    }
+    return `<div class="${shell}"><img src="${escapeHtml(u)}" alt="" class="w-full h-full object-cover" loading="lazy" onerror="this.remove()"></div>`;
 }
 
 function buildBddStaffResultsFull(rows) {
-    const scalarFields = [
-        ['admin_id', 'ID админа'],
-        ['steamid', 'SteamID'],
-        ['group_id', 'ID группы'],
-        ['group_display_name', 'Группа (отображаемое имя)'],
-        ['group_name', 'Группа (системное имя)'],
-        ['immunity', 'Иммунитет'],
-        ['is_frozen', 'Заморозка'],
-        ['admin_updated_at', 'Обновление записи админа'],
-        ['profile_name', 'Имя в профиле'],
-        ['discord_id', 'Discord ID'],
-        ['discord_nickname', 'Discord (ник / username)'],
-        ['last_activity', 'Последняя активность'],
-        ['rank', 'Ранг'],
-        ['kills', 'Убийства'],
-        ['deaths', 'Смерти'],
-        ['playtime', 'Награно (playtime)'],
-        ['ban_is_banned', 'Бан'],
-        ['vip_is_vip', 'VIP'],
-        ['profile_updated_at', 'Обновление профиля'],
-        ['sort_ts', 'Сводная дата обновления']
-    ];
-    return rows.map((r, idx) => {
+    return rows.map((r) => {
         const sid = String(r.steamid || '').trim();
         const sidOk = /^\d{17}$/.test(sid);
-        const links = sidOk
-            ? `<div class="flex flex-wrap gap-2">
-                <a href="https://steamcommunity.com/profiles/${escapeHtml(sid)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-[#171a21]/90 hover:bg-[#1b2838] text-white text-xs font-semibold">Steam</a>
-                <a href="https://fearproject.ru/profile/${escapeHtml(sid)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-[#5865F2]/80 hover:bg-[#4752C4] text-white text-xs font-semibold">FEAR</a>
+        const displayName = String(r.profile_name || r.discord_nickname || '').trim() || '—';
+        const group = String(r.group_display_name || r.group_name || '').trim() || '—';
+        const discordNick = String(r.discord_nickname || '').trim();
+        const discordId = String(r.discord_id || '').trim();
+        const discordLine = discordNick && discordId && discordNick !== discordId
+            ? `${discordNick} · ${discordId}`
+            : (discordNick || discordId || '—');
+        const lastConnect = formatBddStaffDate(r.last_activity);
+        const badges = [
+            r.is_frozen ? '<span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-semibold">freeze</span>' : '',
+            r.ban_is_banned ? '<span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-semibold">banned</span>' : ''
+        ].filter(Boolean).join(' ');
+        const profileLinks = sidOk
+            ? `<div class="pt-1">
+                <a href="https://fearproject.ru/profile/${escapeHtml(sid)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-[#5865F2]/80 hover:bg-[#4752C4] text-white text-xs font-semibold">Profile</a>
             </div>`
-            : '';
-        const av1 = bddStaffAvatarThumb(r.admin_avatar_full);
-        const av2 = bddStaffAvatarThumb(r.profile_avatar_full);
-        const avRow = (av1 || av2)
-            ? `<div class="flex flex-wrap items-center gap-3 mb-3 pb-3 border-b border-white/10">
-                ${av1 ? `<div class="flex items-center gap-2"><span class="text-gray-500 text-[10px] uppercase tracking-wide">Аватар админа</span>${av1}</div>` : ''}
-                ${av2 ? `<div class="flex items-center gap-2"><span class="text-gray-500 text-[10px] uppercase tracking-wide">Аватар профиля</span>${av2}</div>` : ''}
-            </div>`
-            : '';
-        const grid = scalarFields.map(([key, label]) => {
-            const val = bddStaffScalarText(r[key]);
-            return `<div class="flex flex-col gap-0.5 py-1.5 border-b border-white/[0.06] sm:grid sm:grid-cols-[minmax(0,11rem)_1fr] sm:gap-x-3">
-                <span class="text-gray-500 text-[11px]">${escapeHtml(label)}</span>
-                <span class="text-gray-100 text-xs font-mono break-all">${escapeHtml(val)}</span>
-            </div>`;
-        }).join('');
-        const urlAdmin = String(r.admin_avatar_full || '').trim();
-        const urlProf = String(r.profile_avatar_full || '').trim();
-        const urlExtras = [];
-        if (/^https?:\/\//i.test(urlAdmin)) {
-            urlExtras.push(`<div class="flex flex-col gap-0.5 py-1.5 border-b border-white/[0.06] sm:grid sm:grid-cols-[minmax(0,11rem)_1fr] sm:gap-x-3">
-                <span class="text-gray-500 text-[11px]">URL аватара админа</span>
-                <a href="${escapeHtml(urlAdmin)}" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:text-sky-300 text-xs font-mono break-all">${escapeHtml(urlAdmin)}</a>
-            </div>`);
-        }
-        if (/^https?:\/\//i.test(urlProf)) {
-            urlExtras.push(`<div class="flex flex-col gap-0.5 py-1.5 border-b border-white/[0.06] sm:grid sm:grid-cols-[minmax(0,11rem)_1fr] sm:gap-x-3">
-                <span class="text-gray-500 text-[11px]">URL аватара профиля</span>
-                <a href="${escapeHtml(urlProf)}" target="_blank" rel="noopener noreferrer" class="text-sky-400 hover:text-sky-300 text-xs font-mono break-all">${escapeHtml(urlProf)}</a>
-            </div>`);
-        }
-        return `<article class="rounded-xl border border-white/10 bg-white/[0.02] p-4 mb-4 last:mb-0">
-            <div class="flex flex-wrap items-start justify-between gap-3 mb-1">
-                <h3 class="text-white text-sm font-semibold">Запись ${idx + 1}${sidOk ? ` · <span class="font-mono text-gray-300">${escapeHtml(sid)}</span>` : ''}</h3>
-                ${links}
+            : '<span class="text-gray-500 text-xs">Invalid Steam ID — profile link unavailable</span>';
+        return `<article class="rounded-xl border border-white/10 bg-white/[0.02] p-4 mb-3 last:mb-0 flex gap-4 items-start">
+            ${bddStaffAdminAvatar(r.admin_avatar_full)}
+            <div class="min-w-0 flex-1 space-y-2">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-white text-sm font-semibold">${escapeHtml(displayName)}</span>
+                    ${badges ? `<span class="flex flex-wrap gap-1">${badges}</span>` : ''}
+                </div>
+                <div class="text-xs text-gray-400 space-y-1">
+                    <div><span class="text-gray-500">Steam ID</span> <span class="font-mono text-gray-200">${escapeHtml(sid || '—')}</span></div>
+                    <div><span class="text-gray-500">Group</span> ${escapeHtml(group)}</div>
+                    <div><span class="text-gray-500">Discord</span> <span class="text-gray-300">${escapeHtml(discordLine)}</span></div>
+                </div>
+                <div class="text-xs">
+                    <span class="text-gray-500">Last seen</span>
+                    <span class="text-gray-200 ml-1">${escapeHtml(lastConnect)}</span>
+                </div>
+                ${profileLinks}
             </div>
-            ${avRow}
-            <div class="space-y-0">${urlExtras.join('')}${grid}</div>
-            <details class="mt-3 group">
-                <summary class="cursor-pointer text-sky-400 text-xs font-semibold hover:text-sky-300 select-none">Сырой JSON: админ (admins.raw_json)</summary>
-                ${bddStaffJsonBlock(r.admin_raw_json)}
-            </details>
-            <details class="mt-2 group">
-                <summary class="cursor-pointer text-sky-400 text-xs font-semibold hover:text-sky-300 select-none">Сырой JSON: профиль (profiles.raw_json)</summary>
-                ${bddStaffJsonBlock(r.profile_raw_json)}
-            </details>
         </article>`;
     }).join('');
 }
@@ -3148,10 +3090,10 @@ async function runBddStaffSearch() {
     if (!input || !out) return;
     const q = input.value.trim();
     if (q.length < 2) {
-        out.innerHTML = '<span class="text-amber-400 text-sm">Минимум 2 символа.</span>';
+        out.innerHTML = '<span class="text-amber-400 text-sm">Enter at least 2 characters.</span>';
         return;
     }
-    out.innerHTML = '<div class="flex items-center gap-2 py-2"><div class="w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div><span class="text-gray-500 text-sm">Загрузка…</span></div>';
+    out.innerHTML = '<div class="flex items-center gap-2 py-2"><div class="w-4 h-4 border-2 border-sky-500 border-t-transparent rounded-full animate-spin"></div><span class="text-gray-500 text-sm">Loading…</span></div>';
     try {
         const res = await fetch('/api/bdd-staff/search?q=' + encodeURIComponent(q), {
             credentials: 'include',
@@ -3159,24 +3101,24 @@ async function runBddStaffSearch() {
         });
         const data = await res.json().catch(() => ({}));
         if (res.status === 503) {
-            out.innerHTML = `<p class="text-amber-300 text-sm leading-relaxed">${escapeHtml(data.error || 'База стаффа не подключена')}</p>
-                <p class="text-gray-500 text-xs mt-2 leading-relaxed">На Railway: в том же сервисе, где сайт, задай DATABASE_URL через ссылку на Postgres в Variables (например \${{ Postgres.DATABASE_URL }}). BDD_DATABASE_URL учитывается только если DATABASE_URL не задан.</p>`;
+            out.innerHTML = `<p class="text-amber-300 text-sm leading-relaxed">${escapeHtml(data.error || 'Staff database is not configured')}</p>
+                <p class="text-gray-500 text-xs mt-2 leading-relaxed">On Railway: set DATABASE_URL on the web service from the Postgres plugin (e.g. \${{ Postgres.DATABASE_URL }}). BDD_DATABASE_URL is used only if DATABASE_URL is unset.</p>`;
             return;
         }
         if (res.status === 403) {
-            out.innerHTML = `<p class="text-amber-400 text-sm">${escapeHtml(data.error || 'Недостаточно прав (нужен уровень 3+)')}</p>`;
+            out.innerHTML = `<p class="text-amber-400 text-sm">${escapeHtml(data.error || 'Access denied (level 3+ required)')}</p>`;
             return;
         }
         if (!res.ok) {
-            out.innerHTML = `<p class="text-rose-400 text-sm">${escapeHtml(data.error || ('Ошибка ' + res.status))}</p>`;
+            out.innerHTML = `<p class="text-rose-400 text-sm">${escapeHtml(data.error || ('Error ' + res.status))}</p>`;
             return;
         }
         const rows = Array.isArray(data.rows) ? data.rows : [];
         if (rows.length === 0) {
-            out.innerHTML = '<p class="text-gray-400 text-sm">Ничего не найдено.</p>';
+            out.innerHTML = '<p class="text-gray-400 text-sm">No results.</p>';
             return;
         }
-        out.innerHTML = `<p class="text-gray-500 text-xs mb-3">Найдено: ${rows.length}</p><div class="space-y-2 max-h-[min(70vh,720px)] overflow-y-auto hide-scrollbar pr-1">${buildBddStaffResultsFull(rows)}</div>`;
+        out.innerHTML = `<p class="text-gray-500 text-xs mb-3">Found: ${rows.length}</p><div class="space-y-2 max-h-[min(70vh,720px)] overflow-y-auto hide-scrollbar pr-1">${buildBddStaffResultsFull(rows)}</div>`;
     } catch (e) {
         out.innerHTML = `<p class="text-rose-400 text-sm">${escapeHtml(String(e.message || e))}</p>`;
     }
