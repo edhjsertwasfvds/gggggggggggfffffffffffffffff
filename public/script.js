@@ -38,6 +38,15 @@ let staffStatsPollTimer = null;
 
 const DEFAULT_AVATAR = 'https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_medium.jpg';
 
+function getVacDaysSinceLastBan(steamId) {
+    const sid = String(steamId || '').trim();
+    if (!sid) return null;
+    const vacPlayers = Array.isArray(state?.vac?.players) ? state.vac.players : [];
+    const row = vacPlayers.find((p) => String(p?.SteamId ?? '') === sid);
+    const n = row ? Number(row.DaysSinceLastBan) : NaN;
+    return Number.isFinite(n) ? n : null;
+}
+
 function closeUiSelectMenu() {
     if (!uiOpenSelectMenu) return;
     uiOpenSelectMenu.classList.add('hidden');
@@ -1013,6 +1022,12 @@ function renderPanel() {
 
         const monthOptions = (() => {
             const months = new Set();
+            const now = new Date();
+            // Fallback: последние 18 месяцев, даже если API/catalog временно пуст.
+            for (let i = 0; i < 18; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1, 12, 0, 0, 0);
+                months.add(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+            }
             list.forEach(p => {
                 const ts = getCreatedTs(p);
                 if (ts != null && ts > 0) {
@@ -1031,6 +1046,11 @@ function renderPanel() {
                     }
                 });
             });
+            const staffPeriods = state?.punishments?.staffPeriods;
+            const periodMonths = Array.isArray(staffPeriods?.months) ? staffPeriods.months : [];
+            periodMonths.forEach((ym) => {
+                if (/^\d{4}-\d{2}$/.test(String(ym))) months.add(String(ym));
+            });
             const arr = Array.from(months).sort().reverse();
             const labels = arr.map(ym => {
                 const [y, m] = ym.split('-');
@@ -1042,6 +1062,16 @@ function renderPanel() {
 
         const weekOptions = (() => {
             const starts = new Set();
+            // Fallback: последние 16 недель (среда -> вторник).
+            const now = new Date();
+            now.setHours(12, 0, 0, 0);
+            const nowShift = (now.getDay() - 3 + 7) % 7;
+            const currentWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - nowShift, 12, 0, 0, 0);
+            for (let i = 0; i < 16; i++) {
+                const w = new Date(currentWeekStart.getTime() - i * 7 * 24 * 60 * 60 * 1000);
+                const ymd = w.getFullYear() + '-' + String(w.getMonth() + 1).padStart(2, '0') + '-' + String(w.getDate()).padStart(2, '0');
+                starts.add(ymd);
+            }
             const addTs = (ts) => {
                 if (!ts || ts <= 0) return;
                 // Use "noon local time" to avoid timezone/DST edge cases shifting the weekday.
@@ -1058,6 +1088,11 @@ function renderPanel() {
             Object.values(statsData).forEach(arr => {
                 if (!Array.isArray(arr)) return;
                 arr.forEach(p => addTs(getCreatedTs(p)));
+            });
+            const staffPeriods = state?.punishments?.staffPeriods;
+            const periodWeeks = Array.isArray(staffPeriods?.weeks) ? staffPeriods.weeks : [];
+            periodWeeks.forEach((ymd) => {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(String(ymd))) starts.add(String(ymd));
             });
             const arr = Array.from(starts).sort().reverse().slice(0, 12);
             const labels = arr.map(ymd => {
@@ -1527,21 +1562,9 @@ function setPunishmentsMonth(value) {
     state.punishments.statsPeriodMode = 'month';
     state.punishments.selectedWeekStart = null;
     if (state.punishments.view === 'stats') {
-        const isOldTable = state?.punishments?.staffTableMode === 'old' || getUserLevel() === 3;
         loadStaffTicketsForSelectedMonth();
-        if (!isOldTable) {
-            state.punishments.staffStatsRows = null;
-            loadStaffStatsFromServer();
-        } else {
-            state.punishments.staffStatsRows = null;
-            if (Array.isArray(state.punishments.staffList) && Object.keys(state.punishments.staffStatsData || {}).length > 0) {
-                state.punishments.staffStatsRows = computeStaffStatsRows(
-                    state.punishments.staffList,
-                    state.punishments.staffStatsData,
-                    state.punishments.selectedMonth
-                );
-            }
-        }
+        state.punishments.staffStatsRows = null;
+        loadStaffStatsFromServer();
     }
     scheduleRenderPanel();
 }
@@ -1558,16 +1581,7 @@ function setPunishmentsWeekStart(startYmd) {
     state.punishments.selectedMonth = null;
     state.punishments.staffStatsRows = null;
     if (state.punishments.view === 'stats') {
-        const isOldTable = state?.punishments?.staffTableMode === 'old' || getUserLevel() === 3;
-        if (!isOldTable) {
-            loadStaffStatsFromServer();
-        } else if (Array.isArray(state.punishments.staffList) && Object.keys(state.punishments.staffStatsData || {}).length > 0) {
-            state.punishments.staffStatsRows = computeStaffStatsRows(
-                state.punishments.staffList,
-                state.punishments.staffStatsData,
-                state.punishments.selectedMonth
-            );
-        }
+        loadStaffStatsFromServer();
         scheduleRenderPanel();
     }
 }
@@ -2271,7 +2285,14 @@ function buildSuspiciousRowHtml(p, index) {
         else if (r.length > 12) r = r.substring(0, 12) + '…';
         flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/15 text-red-400 text-xs font-semibold"><img src="/images/dxdcs2.ico" class="w-3.5 h-3.5">${r || 'DXD'}</span>`);
     }
-    if (p.hasVAC) flags.push('<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 text-xs font-semibold"><img src="/images/valve.ico" class="w-3.5 h-3.5">VAC</span>');
+    if (p.hasVAC) {
+        const days = getVacDaysSinceLastBan(p.steamId);
+        const isRecent = days != null && days >= 0 && days < 30;
+        const vacBg = isRecent ? 'bg-rose-500/15' : 'bg-amber-500/15';
+        const vacText = isRecent ? 'text-rose-400' : 'text-amber-400';
+        const title = days != null ? `VAC: ${days} дн. назад` : 'VAC';
+        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded ${vacBg} ${vacText} text-xs font-semibold" title="${escapeHtml(title)}"><img src="/images/valve.ico" class="w-3.5 h-3.5">VAC</span>`);
+    }
     if (p.hasYooma) {
         let r = (p.yoomaReason || '').trim();
         if (r.includes('Haron Anti-Cheat')) r = 'AC';
