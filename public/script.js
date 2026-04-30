@@ -19,6 +19,9 @@ const state = {
     customFiltersOpen: false,
     filtersMenuOpen: false,
     columnsMenuOpen: false,
+    trackedMenuOpen: false,
+    trackedPlayers: [],
+    trackedPlayersLoading: false,
     punishments: { count: 0, list: [], loading: false, lastSteamId: '', selectedMonth: null, view: 'list', staffList: null, staffStatsRows: null, staffStatsLoading: false, staffStatsData: {}, staffStatsProgress: null, staffTicketsYm: null, staffTicketsBySid: {}, staffTicketsLoading: false, staffRolesBySid: {}, staffRolesLoading: false, staffPayConfig: {}, secureLoaded: false, staffTableMode: 'new', statsPeriodMode: 'month', selectedWeekStart: null, lastLoadedAt: 0, lastSource: '' },
     changesTab: 'roles',
     rolesEditor: { authMode: 'cookie', accessToken: '', steamid: '', name: '', adminId: '', roleName: 'Модератор', log: [] }
@@ -173,7 +176,6 @@ async function loadBoundSteamAvatar(steamId) {
 const LOCAL_SETTINGS_KEY = 'localUiSettings';
 const PLAYERS_COLUMNS_KEY = 'playersTableColumns';
 const PLAYERS_EXCLUSIONS_KEY = 'playersTableExclusions';
-const TRACKED_PLAYERS_KEY = 'trackedPlayersList';
 const TRACKED_PLAYERS_LIMIT = 100;
 let trackedPlayersPresenceInitialized = false;
 let trackedPlayersOnlineSet = new Set();
@@ -249,23 +251,37 @@ function normalizeTrackedSteamId(raw) {
 }
 
 function getTrackedPlayers() {
-    try {
-        const raw = localStorage.getItem(TRACKED_PLAYERS_KEY);
-        const parsed = JSON.parse(raw || '[]');
-        if (!Array.isArray(parsed)) return [];
-        return parsed
-            .map((row) => ({
-                steamId: normalizeTrackedSteamId(row?.steamId),
-                comment: String(row?.comment || '').trim().slice(0, 120)
-            }))
-            .filter((row) => /^\d{17}$/.test(row.steamId))
-            .slice(0, TRACKED_PLAYERS_LIMIT);
-    } catch (_) {
-        return [];
-    }
+    return Array.isArray(state.trackedPlayers) ? state.trackedPlayers : [];
 }
 
 function setTrackedPlayers(list) {
+    state.trackedPlayers = (Array.isArray(list) ? list : [])
+        .map((row) => ({
+            steamId: normalizeTrackedSteamId(row?.steamId),
+            comment: String(row?.comment || '').trim().slice(0, 120)
+        }))
+        .filter((row) => /^\d{17}$/.test(row.steamId))
+        .slice(0, TRACKED_PLAYERS_LIMIT);
+}
+
+async function loadTrackedPlayersShared(forceRefresh = false) {
+    if (state.trackedPlayersLoading && !forceRefresh) return;
+    state.trackedPlayersLoading = true;
+    try {
+        const res = await fetch('/api/tracked-players', { headers: apiAuthHeaders() });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            setTrackedPlayers(Array.isArray(data?.players) ? data.players : []);
+            syncTrackedPlayersPresence(state.allPlayers.players);
+        }
+    } catch (_) {
+        // ignore network errors, keep last in-memory list
+    } finally {
+        state.trackedPlayersLoading = false;
+    }
+}
+
+async function saveTrackedPlayersShared(list) {
     const safe = (Array.isArray(list) ? list : [])
         .map((row) => ({
             steamId: normalizeTrackedSteamId(row?.steamId),
@@ -273,7 +289,14 @@ function setTrackedPlayers(list) {
         }))
         .filter((row) => /^\d{17}$/.test(row.steamId))
         .slice(0, TRACKED_PLAYERS_LIMIT);
-    localStorage.setItem(TRACKED_PLAYERS_KEY, JSON.stringify(safe));
+    const res = await fetch('/api/tracked-players', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...apiAuthHeaders() },
+        body: JSON.stringify({ players: safe })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(String(data?.error || `HTTP ${res.status}`));
+    setTrackedPlayers(Array.isArray(data?.players) ? data.players : safe);
 }
 
 function showTrackedPlayerToast(steamId, comment) {
@@ -2620,34 +2643,29 @@ function buildAllPlayersTable(players) {
             </div>
         </div>` : '';
     const trackedPlayers = getTrackedPlayers();
-    const trackedPlayersHtml = `
-        <div class="rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-3 mb-2">
-            <div class="flex flex-wrap items-center gap-2 justify-between">
-                <div>
-                    <div class="text-[10px] uppercase tracking-wide text-rose-300/80">Отслеживание игроков</div>
-                    <div class="text-sm font-semibold text-white">Список подозреваемых (${trackedPlayers.length})</div>
-                </div>
-            </div>
-            <div class="mt-2 flex flex-wrap gap-2">
-                <input type="text" id="trackedPlayerSteamId" maxlength="17" placeholder="SteamID64" onkeydown="if(event.key==='Enter'){addTrackedPlayerFromInputs()}" class="flex-1 min-w-[180px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs font-mono placeholder-gray-500 focus:outline-none focus:border-rose-400/60">
-                <input type="text" id="trackedPlayerComment" maxlength="120" placeholder="Комментарий" onkeydown="if(event.key==='Enter'){addTrackedPlayerFromInputs()}" class="flex-1 min-w-[180px] bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-xs placeholder-gray-500 focus:outline-none focus:border-rose-400/60">
+    const trackedPlayersMenu = `
+        <div id="trackedPlayersMenu" class="${state.trackedMenuOpen ? '' : 'hidden'} ui-select-menu absolute right-0 top-full mt-1 rounded-xl shadow-xl z-50 p-3 min-w-[420px] max-w-[520px]">
+            <div class="text-[10px] uppercase tracking-wide text-rose-300/80 mb-1">Отслеживание игроков</div>
+            <div class="text-xs text-white font-semibold mb-2">Список подозреваемых (${trackedPlayers.length})</div>
+            <div class="flex flex-wrap gap-2">
+                <input type="text" id="trackedPlayerSteamId" maxlength="17" placeholder="SteamID64" onkeydown="if(event.key==='Enter'){addTrackedPlayerFromInputs()}" class="flex-1 min-w-[140px] bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white text-xs font-mono placeholder-gray-500 focus:outline-none focus:border-rose-400/60">
+                <input type="text" id="trackedPlayerComment" maxlength="120" placeholder="Комментарий" onkeydown="if(event.key==='Enter'){addTrackedPlayerFromInputs()}" class="flex-1 min-w-[140px] bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 text-white text-xs placeholder-gray-500 focus:outline-none focus:border-rose-400/60">
                 <button type="button" onclick="addTrackedPlayerFromInputs()" class="px-3 py-2 rounded-lg bg-rose-500/25 hover:bg-rose-500/35 text-rose-100 text-xs font-semibold">Добавить</button>
             </div>
-            <div class="mt-2 max-h-[140px] overflow-y-auto hide-scrollbar space-y-1">
+            <div class="mt-2 max-h-[180px] overflow-y-auto hide-scrollbar space-y-1">
                 ${trackedPlayers.length > 0
-                    ? trackedPlayers.map((row) => `<div class="flex items-center gap-2 rounded-lg bg-white/[0.03] border border-white/[0.06] px-2.5 py-2">
+                    ? trackedPlayers.map((row) => `<div class="flex items-center gap-2 rounded-lg bg-white/[0.03] border border-white/[0.06] px-2 py-1.5">
                         <span class="text-[11px] text-gray-200 font-mono">${escapeHtml(row.steamId)}</span>
                         <span class="text-[11px] text-gray-400 truncate">${escapeHtml(row.comment || 'Без комментария')}</span>
                         <button type="button" onclick="removeTrackedPlayer('${escapeHtml(row.steamId)}')" class="ml-auto text-[11px] px-2 py-1 rounded bg-white/5 hover:bg-rose-500/20 text-gray-400 hover:text-rose-300">Удалить</button>
                     </div>`).join('')
-                    : '<div class="text-[11px] text-gray-500">Список пуст. Добавьте SteamID, чтобы получать уведомления при появлении игрока в онлайне.</div>'}
+                    : '<div class="text-[11px] text-gray-500">Список пуст.</div>'}
             </div>
         </div>
     `;
 
     return `
         <div class="px-1 -mt-3 space-y-1.5 mb-2">
-            ${trackedPlayersHtml}
             <div class="flex items-center gap-2 text-[11px] text-gray-500">
                 <span>${flagsSummary}</span>
                 ${countText}
@@ -2674,6 +2692,12 @@ function buildAllPlayersTable(players) {
                                 return `<label class="flex items-center gap-2 py-1.5 px-2 rounded hover:bg-white/[0.08] cursor-pointer text-xs text-gray-100" title="Скрывает игроков, которые сейчас находятся на CS:GO серверах."><input type="checkbox" ${checked} onchange="togglePlayersExclusion('excludeCsgoServers')" class="w-3.5 h-3.5 rounded border-white/20 bg-white/5"><span class="inline-flex items-center gap-1">${serverGameIconHtml('CSGO')}<span>CS:GO сервера</span></span></label>`;
                             })()}
                         </div>
+                    </div>
+                    <div class="relative" data-tracked-dropdown="1">
+                        <button type="button" onclick="toggleTrackedPlayersMenu(event)" class="px-3 py-2 text-xs font-semibold rounded-lg ${state.trackedMenuOpen ? 'bg-rose-500/25 text-rose-100' : 'bg-white/[0.08] text-gray-300 hover:bg-white/[0.12]'} flex items-center gap-1.5">
+                            Отслеживание <i class="ph ph-caret-down text-[10px]"></i>
+                        </button>
+                        ${trackedPlayersMenu}
                     </div>
                     <button type="button" data-players-filters-toggle="1" onclick="togglePlayersFiltersMenu()" class="px-3 py-2 text-xs font-semibold rounded-lg ${state.filtersMenuOpen ? 'bg-indigo-500/30 text-indigo-200' : 'bg-white/[0.08] text-gray-300 hover:bg-white/[0.12]'}">
                         Фильтры${activeFilterCount > 0 ? ` • ${activeFilterCount}` : ''}
@@ -2937,6 +2961,7 @@ function openSidePanel(category) {
         startFearReportsIfNeeded();
         requestPlayersDataNow();
         schedulePlayersLoadRetry();
+        void loadTrackedPlayersShared();
     }
     document.querySelectorAll('.dropdown-item[data-category]').forEach(el => {
         el.classList.toggle('active', el.getAttribute('data-category') === category);
@@ -2991,6 +3016,7 @@ function closeSidePanel() {
     state.customFiltersOpen = false;
     state.filtersMenuOpen = false;
     state.columnsMenuOpen = false;
+    state.trackedMenuOpen = false;
     document.querySelectorAll('.dropdown-item[data-category]').forEach(el => el.classList.remove('active'));
 }
 
@@ -3027,13 +3053,31 @@ function clearPlayersFiltersUiMeta() {
 
 function togglePlayersFiltersMenu() {
     state.filtersMenuOpen = !state.filtersMenuOpen;
-    if (state.filtersMenuOpen) state.columnsMenuOpen = false;
+    if (state.filtersMenuOpen) {
+        state.columnsMenuOpen = false;
+        state.trackedMenuOpen = false;
+    }
     scheduleRenderPanel();
 }
 
 function togglePlayersColumnsMenu(e) {
     e?.stopPropagation?.();
     state.columnsMenuOpen = !state.columnsMenuOpen;
+    if (state.columnsMenuOpen) {
+        state.trackedMenuOpen = false;
+        state.filtersMenuOpen = false;
+    }
+    scheduleRenderPanel();
+}
+
+function toggleTrackedPlayersMenu(e) {
+    e?.stopPropagation?.();
+    state.trackedMenuOpen = !state.trackedMenuOpen;
+    if (state.trackedMenuOpen) {
+        state.columnsMenuOpen = false;
+        state.filtersMenuOpen = false;
+        void loadTrackedPlayersShared();
+    }
     scheduleRenderPanel();
 }
 
@@ -3496,7 +3540,7 @@ function refreshAllPlayersPanel(withAnimation = true) {
     requestAccountAgeFor(merged, 'steamId');
 }
 
-function addTrackedPlayerFromInputs() {
+async function addTrackedPlayerFromInputs() {
     const steamInput = document.getElementById('trackedPlayerSteamId');
     const commentInput = document.getElementById('trackedPlayerComment');
     if (!steamInput || !commentInput) return;
@@ -3508,20 +3552,24 @@ function addTrackedPlayerFromInputs() {
     const comment = String(commentInput.value || '').trim().slice(0, 120);
     const list = getTrackedPlayers().filter((row) => row.steamId !== steamId);
     list.unshift({ steamId, comment });
-    setTrackedPlayers(list);
-    steamInput.value = '';
-    commentInput.value = '';
-    syncTrackedPlayersPresence(state.allPlayers.players);
-    if (isPlayersCategoryOpen()) refreshAllPlayersPanel(false);
+    try {
+        await saveTrackedPlayersShared(list);
+        steamInput.value = '';
+        commentInput.value = '';
+        syncTrackedPlayersPresence(state.allPlayers.players);
+        if (isPlayersCategoryOpen()) refreshAllPlayersPanel(false);
+    } catch (_) {}
 }
 
-function removeTrackedPlayer(steamId) {
+async function removeTrackedPlayer(steamId) {
     const sid = normalizeTrackedSteamId(steamId);
     if (!sid) return;
     const list = getTrackedPlayers().filter((row) => row.steamId !== sid);
-    setTrackedPlayers(list);
-    syncTrackedPlayersPresence(state.allPlayers.players);
-    if (isPlayersCategoryOpen()) refreshAllPlayersPanel(false);
+    try {
+        await saveTrackedPlayersShared(list);
+        syncTrackedPlayersPresence(state.allPlayers.players);
+        if (isPlayersCategoryOpen()) refreshAllPlayersPanel(false);
+    } catch (_) {}
 }
 
 // ——— Проверка игрока ———
@@ -4161,6 +4209,11 @@ document.addEventListener('keydown', (e) => {
             scheduleRenderPanel();
             return;
         }
+        if (state.trackedMenuOpen) {
+            state.trackedMenuOpen = false;
+            scheduleRenderPanel();
+            return;
+        }
         if (state.filtersMenuOpen && isPlayersCategoryOpen()) {
             state.filtersMenuOpen = false;
             scheduleRenderPanel();
@@ -4175,6 +4228,11 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('click', (e) => {
     if (state.columnsMenuOpen && !e.target.closest('[data-columns-dropdown]')) {
         state.columnsMenuOpen = false;
+        scheduleRenderPanel();
+        return;
+    }
+    if (state.trackedMenuOpen && !e.target.closest('[data-tracked-dropdown]')) {
+        state.trackedMenuOpen = false;
         scheduleRenderPanel();
         return;
     }

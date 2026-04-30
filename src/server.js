@@ -2011,6 +2011,47 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // --- Shared tracked players list (level >= 1) ---
+    if (parsedUrl.pathname === '/api/tracked-players' && req.method === 'GET') {
+        const session = requireSession(req, res, 1);
+        if (!session) return;
+        try {
+            const raw = String(db.getSetting('tracked_players_list', '[]') || '[]');
+            const parsed = JSON.parse(raw);
+            const players = Array.isArray(parsed) ? parsed : [];
+            sendJson(res, 200, { players });
+        } catch (_) {
+            sendJson(res, 200, { players: [] });
+        }
+        return;
+    }
+    if (parsedUrl.pathname === '/api/tracked-players' && req.method === 'POST') {
+        const session = requireSession(req, res, 1);
+        if (!session) return;
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            try {
+                const data = JSON.parse(body || '{}');
+                const input = Array.isArray(data?.players) ? data.players : [];
+                const players = input
+                    .map((row) => {
+                        const steamId = String(row?.steamId || '').replace(/\D/g, '').trim();
+                        const comment = String(row?.comment || '').trim().slice(0, 120);
+                        return { steamId, comment };
+                    })
+                    .filter((row) => /^\d{17}$/.test(row.steamId))
+                    .slice(0, 100);
+                db.setSetting('tracked_players_list', JSON.stringify(players));
+                safeLog(session, 'tracked_players_update', null, null, `count=${players.length}`);
+                sendJson(res, 200, { ok: true, players });
+            } catch (_) {
+                sendError(res, 400, 'INVALID_JSON', 'Invalid JSON');
+            }
+        });
+        return;
+    }
+
     // --- Settings API (level >= 4) ---
     if (req.url === '/api/settings' && req.method === 'GET') {
         const session = getSessionFromReq(req);
