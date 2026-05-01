@@ -2686,7 +2686,7 @@ function buildAllPlayersTable(players) {
         </div>` : '';
     const trackedPlayers = getTrackedPlayers();
     const trackedPlayersMenu = `
-        <div id="trackedPlayersMenu" class="${state.trackedMenuOpen ? '' : 'hidden'} ui-select-menu absolute right-0 top-full mt-1 rounded-xl shadow-xl z-50 p-3 w-[min(560px,calc(100vw-80px))]">
+        <div id="trackedPlayersMenu" class="${state.trackedMenuOpen ? '' : 'hidden'} ui-select-menu absolute right-0 bottom-full mb-1 rounded-xl shadow-xl z-[120] p-3 w-[520px] max-w-[calc(100vw-120px)]">
             <div class="text-[10px] uppercase tracking-wide text-rose-300/80 mb-1">Отслеживание игроков</div>
             <div class="text-xs text-white font-semibold mb-2">Список подозреваемых (${trackedPlayers.length})</div>
             <div class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
@@ -2713,14 +2713,14 @@ function buildAllPlayersTable(players) {
     `;
 
     return `
-        <div class="px-1 -mt-3 space-y-1.5 mb-2">
+        <div class="px-1 -mt-3 space-y-1.5 mb-2 overflow-visible">
             <div class="flex items-center gap-2 text-[11px] text-gray-500">
                 <span>${flagsSummary}</span>
                 ${countText}
             </div>
             <div class="flex flex-wrap gap-2 items-center justify-between w-full">
                 <div class="flex flex-wrap gap-2">${sortButtons}</div>
-                <div class="flex gap-2 items-center ml-auto">
+                <div class="flex gap-2 items-center ml-auto overflow-visible">
                     <div class="relative" data-columns-dropdown="1">
                         <button type="button" onclick="togglePlayersColumnsMenu(event)" class="px-3 py-2 text-xs font-semibold rounded-lg bg-white/[0.08] text-gray-300 hover:bg-white/[0.12] flex items-center gap-1.5">
                             Исключения <i class="ph ph-caret-down text-[10px]"></i>
