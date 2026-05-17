@@ -2308,9 +2308,9 @@ function buildVacTable(players) {
                         <td class="py-3 px-3 text-white text-sm font-bold w-12">${i + 1}</td>
                                 <td class="py-3 px-3">
                                     <div class="flex items-center gap-3">
-                                <img src="${p.avatar || DEFAULT_AVATAR}" alt="${p.nickname || 'Player'}" class="w-9 h-9 rounded-full" onerror="this.src='${DEFAULT_AVATAR}'">
+                                <img src="${p.avatar || DEFAULT_AVATAR}" alt="${escapeHtml(p.nickname || 'Player')}" class="w-9 h-9 rounded-full" onerror="this.src='${DEFAULT_AVATAR}'">
                                         <div class="min-w-0">
-                                    <div class="flex items-center gap-1"><span class="text-white text-sm font-semibold truncate">${p.nickname || 'Unknown'}</span>${fBadge}${rBadge}</div>
+                                    <div class="flex items-center gap-1"><span class="text-white text-sm font-semibold truncate">${escapeHtml(p.nickname || 'Unknown')}</span>${fBadge}${rBadge}</div>
                                     <div class="text-gray-500 text-xs font-mono">${p.SteamId}</div>
                                         </div>
                                     </div>
@@ -2366,14 +2366,14 @@ function buildYoomaTable(players) {
                         <td class="py-3 px-3 text-white text-sm font-bold w-12">${i + 1}</td>
                                 <td class="py-3 px-3">
                                     <div class="flex items-center gap-3">
-                                <img src="${p.avatar || DEFAULT_AVATAR}" alt="${p.nickname || 'Player'}" class="w-9 h-9 rounded-full" onerror="this.src='${DEFAULT_AVATAR}'">
+                                <img src="${p.avatar || DEFAULT_AVATAR}" alt="${escapeHtml(p.nickname || 'Player')}" class="w-9 h-9 rounded-full" onerror="this.src='${DEFAULT_AVATAR}'">
                                         <div class="min-w-0">
-                                    <div class="flex items-center gap-1"><span class="text-white text-sm font-semibold truncate">${p.nickname || 'Unknown'}</span>${fBadge}${reportBadge}</div>
+                                    <div class="flex items-center gap-1"><span class="text-white text-sm font-semibold truncate">${escapeHtml(p.nickname || 'Unknown')}</span>${fBadge}${reportBadge}</div>
                                     <div class="text-gray-500 text-xs font-mono">${p.steamId}</div>
                                         </div>
                                     </div>
                                 </td>
-                        <td class="py-3 px-3 text-indigo-400 text-sm font-semibold whitespace-nowrap">${reason || '—'}</td>
+                        <td class="py-3 px-3 text-indigo-400 text-sm font-semibold whitespace-nowrap">${escapeHtml(reason) || '—'}</td>
                         <td class="py-3 px-3 text-gray-400 text-xs min-w-[8rem] w-[8rem]">
                             <div class="flex flex-col">
                                 <span class="whitespace-nowrap">${daysText}</span>
@@ -2463,7 +2463,7 @@ function buildSuspiciousRowHtml(p, index) {
         else if (/самопризнан/i.test(r)) r = 'Признание';
         else if (/чит/i.test(r)) r = 'Читы';
         else if (r.length > 12) r = r.substring(0, 12) + '…';
-        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/15 text-red-400 text-xs font-semibold"><img src="/images/dxdcs2.ico" class="w-3.5 h-3.5">${r || 'DXD'}</span>`);
+        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-500/15 text-red-400 text-xs font-semibold"><img src="/images/dxdcs2.ico" class="w-3.5 h-3.5">${escapeHtml(r) || 'DXD'}</span>`);
     }
     if (p.hasVAC) {
         const days = getVacDaysSinceLastBan(p.steamId);
@@ -2482,13 +2482,13 @@ function buildSuspiciousRowHtml(p, index) {
         else if (/самопризнан/i.test(r)) r = 'Признание';
         else if (/использован.*чит|чит/i.test(r)) r = 'Читы';
         else if (r.length > 8) r = r.substring(0, 8) + '…';
-        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/15 text-purple-400 text-xs font-semibold"><img src="/images/yooma-logo.png" class="w-3.5 h-3.5">${r || 'Yooma'}</span>`);
+        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/15 text-purple-400 text-xs font-semibold"><img src="/images/yooma-logo.png" class="w-3.5 h-3.5">${escapeHtml(r) || 'Yooma'}</span>`);
     }
     if (p.hasCS2Red) {
-        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-400 text-xs font-semibold"><img src="/images/cs2red.ico" class="w-3.5 h-3.5">${cs2redReason(p.cs2redReason)}</span>`);
+        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-400 text-xs font-semibold"><img src="/images/cs2red.ico" class="w-3.5 h-3.5">${escapeHtml(cs2redReason(p.cs2redReason))}</span>`);
     }
     if (p.hasDeti00) {
-        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-500/15 text-teal-400 text-xs font-semibold"><img src="/images/deti00.ico" class="w-3.5 h-3.5">${deti00Reason(p.deti00Reason)}</span>`);
+        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-500/15 text-teal-400 text-xs font-semibold"><img src="/images/deti00.ico" class="w-3.5 h-3.5">${escapeHtml(deti00Reason(p.deti00Reason))}</span>`);
     }
     if (p.hasPrideCS2) {
         let r = (p.pridecs2Reason || '').trim();
@@ -2498,7 +2498,7 @@ function buildSuspiciousRowHtml(p, index) {
         else if (/самопризнан/i.test(r)) r = 'Признание';
         else if (/AntiDLL|Anti-Cheat|RAC/i.test(r)) r = 'AC';
         else if (r.length > 8) r = r.substring(0, 8) + '…';
-        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-500/15 text-orange-400 text-xs font-semibold"><img src="/images/pridecs2.ico" class="w-3.5 h-3.5">${r || 'Pride'}</span>`);
+        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-500/15 text-orange-400 text-xs font-semibold"><img src="/images/pridecs2.ico" class="w-3.5 h-3.5">${escapeHtml(r) || 'Pride'}</span>`);
     }
     if (p.hasTop2) {
         let r = (p.top2Reason || '').trim();
@@ -2510,7 +2510,7 @@ function buildSuspiciousRowHtml(p, index) {
         else if (/AntiDLL|Anti-Cheat|RAC/i.test(r)) r = 'AC';
         else if (/читерств/i.test(r)) r = 'Читы';
         else if (r.length > 8) r = r.substring(0, 8) + '…';
-        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-lime-500/15 text-lime-400 text-xs font-semibold"><img src="/images/top2.ico" class="w-3.5 h-3.5">${r || 'Top2'}</span>`);
+        flags.push(`<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-lime-500/15 text-lime-400 text-xs font-semibold"><img src="/images/top2.ico" class="w-3.5 h-3.5">${escapeHtml(r) || 'Top2'}</span>`);
     }
     const flagsHtml = flags.join(' ');
     const sid = String(p.steamId ?? '');
@@ -2528,7 +2528,7 @@ function buildSuspiciousRowHtml(p, index) {
     const vis = getPlayersTableColumns();
     const cells = [];
     if (vis.num) cells.push(`<td data-column="num" class="py-3 px-3 text-white text-sm font-bold w-12">${index + 1}</td>`);
-    if (vis.player) cells.push(`<td data-column="player" class="py-3 px-3"><div class="flex items-center gap-3"><img src="${p.avatar || DEFAULT_AVATAR}" alt="${p.nickname || 'Player'}" class="w-9 h-9 rounded-full" onerror="this.src='${DEFAULT_AVATAR}'"><div class="min-w-0"><div class="flex items-center gap-1"><span class="text-white text-sm font-semibold truncate">${p.nickname || 'Unknown'}</span>${fBadge}${rBadge}</div><div class="mt-0.5 flex items-center gap-2"><div class="text-gray-500 text-xs font-mono truncate">${p.steamId}</div>${connectBtnHtml}</div></div></div></td>`);
+    if (vis.player) cells.push(`<td data-column="player" class="py-3 px-3"><div class="flex items-center gap-3"><img src="${p.avatar || DEFAULT_AVATAR}" alt="${escapeHtml(p.nickname || 'Player')}" class="w-9 h-9 rounded-full" onerror="this.src='${DEFAULT_AVATAR}'"><div class="min-w-0"><div class="flex items-center gap-1"><span class="text-white text-sm font-semibold truncate">${escapeHtml(p.nickname || 'Unknown')}</span>${fBadge}${rBadge}</div><div class="mt-0.5 flex items-center gap-2"><div class="text-gray-500 text-xs font-mono truncate">${p.steamId}</div>${connectBtnHtml}</div></div></div></td>`);
     if (vis.flags) cells.push(`<td data-column="flags" class="py-3 px-2"><div class="flex gap-1 flex-wrap">${flagsHtml}</div></td>`);
     if (vis.kd) cells.push(`<td data-column="kd" class="py-3 px-2"><div class="text-gray-400 text-xs font-semibold">${kd} <span class="text-gray-500">(${kills}/${deaths})</span></div></td>`);
     if (vis.accDate) cells.push(`<td data-column="accDate" class="py-3 px-2"><span id="acc-age-${sid}" class="text-gray-500 text-xs">...</span></td>`);
@@ -2945,7 +2945,7 @@ function applyPlayerGames(data) {
         return;
     }
     if (data.games && data.games.length > 0) {
-        el.innerHTML = `<span class="text-amber-400">${data.games.map(g => g.name).join(', ')}</span>`;
+        el.innerHTML = `<span class="text-amber-400">${data.games.map(g => escapeHtml(g.name)).join(', ')}</span>`;
     } else {
         el.innerHTML = '<span class="text-gray-500">Нет игр с банами</span>';
     }
@@ -3742,7 +3742,7 @@ function processCheckData(checkData, steamId, forModal = false) {
         if (b.extra) detail += ` (${b.extra})`;
         const receivedAt = formatBanReceivedDate(b.receivedAt || b.date || b.created || b.timestamp);
         if (receivedAt) detail += ` • получен: ${receivedAt}`;
-        return `<div class="flex items-center gap-2 p-2.5 rounded-lg ${bgClass}">${ico}<span class="${textClass} text-xs font-semibold">${b.source}</span><span class="text-gray-400 text-xs">${detail}</span></div>`;
+        return `<div class="flex items-center gap-2 p-2.5 rounded-lg ${bgClass}">${ico}<span class="${textClass} text-xs font-semibold">${escapeHtml(b.source)}</span><span class="text-gray-400 text-xs">${escapeHtml(detail)}</span></div>`;
     }).join('') : '<p class="text-emerald-400/70 text-xs">Нет банов</p>';
 
     const isOnline = p.online || (f?.stats?.online === 1);
@@ -3750,8 +3750,8 @@ function processCheckData(checkData, steamId, forModal = false) {
     const currentGame = s?.currentGame || null;
     const serverGameIcon = serverGameIconHtml(p.serverGame);
     let statusHtml;
-    if (isOnline) statusHtml = `<span class="text-emerald-400 text-xs font-semibold">● Онлайн</span>${serverName ? ` <span class="text-gray-500 text-xs ml-1 inline-flex items-center gap-1">${serverGameIcon}<span>на ${serverName}</span></span>` : ''}`;
-    else if (currentGame) statusHtml = `<span class="text-emerald-400 text-xs font-semibold">● В игре</span> <span class="text-gray-500 text-xs ml-1">${currentGame}</span>`;
+    if (isOnline) statusHtml = `<span class="text-emerald-400 text-xs font-semibold">● Онлайн</span>${serverName ? ` <span class="text-gray-500 text-xs ml-1 inline-flex items-center gap-1">${serverGameIcon}<span>на ${escapeHtml(serverName)}</span></span>` : ''}`;
+    else if (currentGame) statusHtml = `<span class="text-emerald-400 text-xs font-semibold">● В игре</span> <span class="text-gray-500 text-xs ml-1">${escapeHtml(currentGame)}</span>`;
     else {
         const lastOff = s?.lastLogoff ? formatAccountAge(s.lastLogoff) : null;
         statusHtml = `<span class="text-gray-500 text-xs">● Оффлайн</span>${lastOff ? ` <span class="text-gray-600 text-xs ml-1">был ${lastOff}</span>` : ''}`;
@@ -3797,11 +3797,11 @@ function processCheckData(checkData, steamId, forModal = false) {
         statsCards.push(`<a href="${faceitUrl}" target="_blank" class="${cardClass} block" title="Перейти в Faceit"><span class="text-gray-500">Faceit</span><div class="flex items-center gap-1 font-semibold mt-0.5" style="color:${flColor}"><img src="/images/lvl${fc.faceitLevel}.svg" class="w-4 h-4" loading="eager" decoding="sync">Lvl ${fc.faceitLevel}${fc.faceitElo ? ` <span class="text-gray-500 text-[10px]">(${fc.faceitElo} ELO)</span>` : ''}</div></a>`);
     }
     const badges = [];
-    if (adminGroup) badges.push(`<span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-xs font-semibold rounded-full">${adminGroup}</span>`);
-    if (vip) badges.push(`<span class="px-2 py-0.5 bg-purple-500/10 text-purple-400 text-xs font-semibold rounded-full">${vip}</span>`);
-    const countryFlag = country ? `<img src="https://flagcdn.com/16x12/${country.toLowerCase()}.png" class="inline-block mr-1" alt="${country}">` : '';
+    if (adminGroup) badges.push(`<span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 text-xs font-semibold rounded-full">${escapeHtml(adminGroup)}</span>`);
+    if (vip) badges.push(`<span class="px-2 py-0.5 bg-purple-500/10 text-purple-400 text-xs font-semibold rounded-full">${escapeHtml(vip)}</span>`);
+    const countryFlag = country ? `<img src="https://flagcdn.com/16x12/${country.toLowerCase()}.png" class="inline-block mr-1" alt="${escapeHtml(country)}">` : '';
 
-    const countrySpan = country ? `<span class="text-gray-600 text-xs ml-auto">${countryFlag}${country}</span>` : '';
+    const countrySpan = country ? `<span class="text-gray-600 text-xs ml-auto">${countryFlag}${escapeHtml(country)}</span>` : '';
     return { nick, avatar, bansHtml, statsCards, statusHtml, badges, countrySpan, whitelistBadge };
 }
 
@@ -3811,15 +3811,15 @@ function renderCheckPartial(localData, result, steamId) {
     const avatar = p.avatar || DEFAULT_AVATAR;
     const gameIco = serverGameIconHtml(p.serverGame);
     const bansHtml = (p.bans || []).length > 0
-        ? (p.bans || []).map(b => `<div class="flex items-center gap-2 p-2.5 rounded-lg bg-rose-500/10"><span class="text-rose-400 text-xs font-semibold">${b.source}</span><span class="text-gray-400 text-xs">${b.reason || '—'}</span></div>`).join('')
+        ? (p.bans || []).map(b => `<div class="flex items-center gap-2 p-2.5 rounded-lg bg-rose-500/10"><span class="text-rose-400 text-xs font-semibold">${escapeHtml(b.source)}</span><span class="text-gray-400 text-xs">${escapeHtml(b.reason || '—')}</span></div>`).join('')
         : '<p class="text-gray-500 text-xs">Загрузка банов...</p>';
     result.innerHTML = `
         <div class="flex items-center gap-4 mb-5">
             <img src="${avatar}" class="w-16 h-16 rounded-full ring-2 ring-white/10" onerror="this.src='${DEFAULT_AVATAR}'">
             <div class="min-w-0 flex-1">
-                <div class="text-white text-lg font-bold truncate">${nick}</div>
+                <div class="text-white text-lg font-bold truncate">${escapeHtml(nick)}</div>
                 <div class="text-gray-500 text-xs font-mono">${steamId}</div>
-                    ${p.online ? `<div class="text-emerald-400 text-xs mt-1 inline-flex items-center gap-1">${gameIco}● Онлайн на ${p.serverName || 'сервере'}</div>` : ''}
+                    ${p.online ? `<div class="text-emerald-400 text-xs mt-1 inline-flex items-center gap-1">${gameIco}● Онлайн на ${escapeHtml(p.serverName || 'сервере')}</div>` : ''}
             </div>
         </div>
         <div class="mb-5"><h4 class="text-gray-400 text-xs font-semibold mb-2">Баны</h4><div class="space-y-1.5">${bansHtml}</div></div>
@@ -3832,13 +3832,13 @@ function renderCheckFromMergedPlayer(p, result, steamId) {
     const whitelistBadge = p.whitelisted ? '<span class="px-2 py-0.5 bg-green-500/10 text-green-400 text-xs font-semibold rounded-full">Чист</span>' : '';
     const bansHtml = buildBansFromMergedPlayer(p);
     const gameIco = serverGameIconHtml(p.serverGame);
-    const statusHtml = p.online ? `<span class="text-emerald-400 text-xs font-semibold">● Онлайн</span>${p.serverName ? ` <span class="text-gray-500 text-xs ml-1 inline-flex items-center gap-1">${gameIco}<span>на ${p.serverName}</span></span>` : ''}` : '';
+    const statusHtml = p.online ? `<span class="text-emerald-400 text-xs font-semibold">● Онлайн</span>${p.serverName ? ` <span class="text-gray-500 text-xs ml-1 inline-flex items-center gap-1">${gameIco}<span>на ${escapeHtml(p.serverName)}</span></span>` : ''}` : '';
     result.innerHTML = `
         <div class="flex items-center gap-4 mb-5">
             <img src="${avatar}" class="w-16 h-16 rounded-full ring-2 ring-white/10" onerror="this.src='${DEFAULT_AVATAR}'">
             <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-white text-lg font-bold truncate">${nick}</span>
+                    <span class="text-white text-lg font-bold truncate">${escapeHtml(nick)}</span>
                     ${whitelistBadge}
                 </div>
                 <div class="flex items-center gap-2 mt-0.5">
@@ -3893,7 +3893,7 @@ async function runPlayerCheck() {
                 <img src="${d.avatar}" class="w-16 h-16 rounded-full ring-2 ring-white/10" onerror="this.src='${DEFAULT_AVATAR}'">
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2 flex-wrap">
-                        <span class="text-white text-lg font-bold truncate">${d.nick}</span>
+                        <span class="text-white text-lg font-bold truncate">${escapeHtml(d.nick)}</span>
                         ${d.whitelistBadge}
                         ${d.badges.join('')}
                     </div>
@@ -3938,7 +3938,7 @@ async function openFriendsModal(steamId) {
                 <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-white/[0.04]">
                     <img src="${f.avatar || DEFAULT_AVATAR}" class="w-10 h-10 rounded-full" onerror="this.src='${DEFAULT_AVATAR}'">
                     <div class="min-w-0 flex-1">
-                        <div class="text-white text-sm font-semibold truncate">${f.nickname || 'Unknown'}</div>
+                        <div class="text-white text-sm font-semibold truncate">${escapeHtml(f.nickname || 'Unknown')}</div>
                         <div class="text-gray-500 text-xs font-mono">${f.steamId}</div>
                     </div>
                     <a href="https://steamcommunity.com/profiles/${f.steamId}" target="_blank" class="px-2 py-1 bg-[#171a21] hover:bg-[#1b2838] text-white text-xs rounded">Steam</a>

@@ -139,6 +139,14 @@
     </main>
 
     <script>
+        function escapeHtml(s) {
+            const x = String(s ?? '');
+            return x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+        function escapeForOnclick(s) {
+            if (s == null || s === '') return '';
+            return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' ').slice(0, 64);
+        }
         let currentPage = 1;
         const itemsPerPage = 50;
         let allWhitelist = [];
@@ -268,12 +276,12 @@
                                 <img src="https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg" 
                                      class="w-10 h-10 rounded-lg border border-white/[0.1]" 
                                      onerror="this.src='https://avatars.steamstatic.com/fef49e7fa7e1997310d705b2a6158ff8dc1cdfeb_full.jpg'">
-                                <span class="font-semibold">${item.nickname}</span>
+                                <span class="font-semibold">${escapeHtml(item.nickname)}</span>
                             </div>
                         </td>
-                        <td class="py-4 px-6 text-sm font-mono text-gray-400">${item.steam_id}</td>
+                        <td class="py-4 px-6 text-sm font-mono text-gray-400">${escapeHtml(item.steam_id)}</td>
                         <td class="py-4 px-6 text-sm">
-                            <div class="font-semibold">${item.added_by_name}</div>
+                            <div class="font-semibold">${escapeHtml(item.added_by_name)}</div>
                         </td>
                         <td class="py-4 px-6 text-sm text-gray-400 whitespace-nowrap">${timeStr}</td>
                         <td class="py-4 px-6 text-sm">
@@ -286,7 +294,7 @@
                                    class="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-lg text-xs font-semibold transition-colors">
                                     Steam
                                 </a>
-                                ${(pageUserLevel >= 3 || (item.added_by_discord_id != null && String(item.added_by_discord_id) === pageUserId)) ? `<button onclick="removeFromWhitelist('${item.steam_id}', '${item.nickname}')"
+                                ${(pageUserLevel >= 3 || (item.added_by_discord_id != null && String(item.added_by_discord_id) === pageUserId)) ? `<button onclick="removeFromWhitelist('${escapeHtml(item.steam_id)}', '${escapeForOnclick(item.nickname)}')"
                                         class="px-3 py-1.5 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg text-xs font-semibold transition-colors">
                                     Удалить
                                 </button>` : ''}

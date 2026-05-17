@@ -213,6 +213,10 @@
     </main>
 
     <script>
+        function escapeHtml(s) {
+            const x = String(s ?? '');
+            return x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
         let currentPage = 1;
         const logsPerPage = 50;
         let allLogs = [];
@@ -356,16 +360,16 @@
                     <tr class="border-t border-white/[0.05] hover:bg-white/[0.02] transition-colors">
                         <td class="py-4 px-6 text-sm text-gray-400 whitespace-nowrap">${timeStr}</td>
                         <td class="py-4 px-6 text-sm">
-                            <div class="font-semibold">${log.user_name}</div>
+                            <div class="font-semibold">${escapeHtml(log.user_name)}</div>
                         </td>
                         <td class="py-4 px-6 text-sm">${actionName}</td>
                         <td class="py-4 px-6 text-sm">
                             ${log.target_name ? `
-                                <div class="font-semibold">${log.target_name}</div>
-                                <div class="text-xs text-gray-500 font-mono">${log.target_steam_id || ''}</div>
+                                <div class="font-semibold">${escapeHtml(log.target_name)}</div>
+                                <div class="text-xs text-gray-500 font-mono">${escapeHtml(log.target_steam_id || '')}</div>
                             ` : '<span class="text-gray-500">—</span>'}
                         </td>
-                        <td class="py-4 px-6 text-sm text-gray-400">${log.details || '—'}</td>
+                        <td class="py-4 px-6 text-sm text-gray-400">${escapeHtml(log.details || '—')}</td>
                     </tr>
                 `;
             }).join('');

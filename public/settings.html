@@ -373,6 +373,10 @@
             d.textContent = s;
             return d.innerHTML;
         }
+        function escOnclick(s) {
+            if (s == null || s === '') return '';
+            return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' ').slice(0, 64);
+        }
 
         function closeUiSelectMenu() {
             if (!uiOpenSelectMenu) return;
@@ -655,7 +659,7 @@
                             <code class="text-green-400 font-mono text-xs truncate">${esc(c.code)}</code>
                             <span class="text-gray-400 text-xs whitespace-nowrap">уровень ${c.level} (${lNames[c.level] || ''}) ${c.used_at ? '— использован' : ''}</span>
                         </div>
-                        <button onclick="deleteInviteCode('${esc(c.code)}')" class="px-2 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-[11px] transition-colors" title="Удалить код">Удалить</button>
+                        <button onclick="deleteInviteCode('${escOnclick(c.code)}')" class="px-2 h-7 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-[11px] transition-colors" title="Удалить код">Удалить</button>
                     </div>
                 `).join('');
             } catch (_) {}
@@ -752,9 +756,9 @@
                                 <select onchange="changeLevel(${u.id}, this.value)" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs focus:outline-none focus:border-indigo-500 cursor-pointer">
                                     ${levelOpts}
                                 </select>
-                                ${canBindSteamId ? `<button onclick="promptSteamId(${u.id}, '${esc(u.username)}', '${esc(u.steamId || '')}')" class="px-2 h-8 rounded-lg hover:bg-cyan-500/10 text-cyan-400/70 hover:text-cyan-300 text-[11px] transition-colors" title="Привязать SteamID">SteamID</button>` : ''}
-                                <button onclick="promptPassword(${u.id}, '${esc(u.username)}')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-indigo-500/10 text-indigo-400/60 hover:text-indigo-400 transition-colors" title="Сменить пароль"><i class="ph ph-key text-base"></i></button>
-                                ${canDelete ? `<button onclick="deleteUser(${u.id}, '${esc(u.username)}')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-rose-500/10 text-rose-400/60 hover:text-rose-400 transition-colors" title="Удалить"><i class="ph ph-trash text-base"></i></button>` : ''}
+                                ${canBindSteamId ? `<button onclick="promptSteamId(${u.id}, '${escOnclick(u.username)}', '${escOnclick(u.steamId || '')}')" class="px-2 h-8 rounded-lg hover:bg-cyan-500/10 text-cyan-400/70 hover:text-cyan-300 text-[11px] transition-colors" title="Привязать SteamID">SteamID</button>` : ''}
+                                <button onclick="promptPassword(${u.id}, '${escOnclick(u.username)}')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-indigo-500/10 text-indigo-400/60 hover:text-indigo-400 transition-colors" title="Сменить пароль"><i class="ph ph-key text-base"></i></button>
+                                ${canDelete ? `<button onclick="deleteUser(${u.id}, '${escOnclick(u.username)}')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-rose-500/10 text-rose-400/60 hover:text-rose-400 transition-colors" title="Удалить"><i class="ph ph-trash text-base"></i></button>` : ''}
                             ` : ''}
                         </div>
                     </div>`;
