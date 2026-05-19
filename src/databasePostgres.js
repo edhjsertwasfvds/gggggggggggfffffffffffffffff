@@ -172,6 +172,23 @@ async function initDatabase() {
             updated_by_username TEXT,
             updated_at BIGINT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS panel_fear_punishments (
+            punishment_id INTEGER PRIMARY KEY,
+            steamid TEXT NOT NULL,
+            name TEXT,
+            admin_steamid TEXT NOT NULL,
+            admin_name TEXT,
+            reason TEXT,
+            status INTEGER,
+            duration INTEGER,
+            created INTEGER,
+            expires INTEGER,
+            type INTEGER,
+            punish_type INTEGER,
+            avatar TEXT,
+            admin_avatar TEXT,
+            updated_at BIGINT NOT NULL
+        );
     `);
     await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_panel_action_logs_user ON panel_action_logs(user_discord_id);
@@ -183,6 +200,9 @@ async function initDatabase() {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_panel_users_username ON panel_users(username);
         CREATE INDEX IF NOT EXISTS idx_panel_staff_tickets_ym ON panel_staff_tickets(ym);
         CREATE INDEX IF NOT EXISTS idx_panel_staff_tickets_sid ON panel_staff_tickets(steam_id);
+        CREATE INDEX IF NOT EXISTS idx_panel_fear_pun_admin ON panel_fear_punishments(admin_steamid);
+        CREATE INDEX IF NOT EXISTS idx_panel_fear_pun_created ON panel_fear_punishments(created);
+        CREATE INDEX IF NOT EXISTS idx_panel_fear_pun_status ON panel_fear_punishments(status);
     `);
 
     const bootstrapUsers = getBootstrapUsersFromEnv();
@@ -816,6 +836,61 @@ async function getActivityHeatmap(days = 30) {
     return heatmap;
 }
 
+async function replaceFearPunishments(adminSteamId, rows) {
+    const client = await getPool().connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('DELETE FROM panel_fear_punishments WHERE admin_steamid = $1', [adminSteamId]);
+        if (rows.length > 0) {
+            const values = [];
+            const params = [];
+            let idx = 1;
+            for (const r of rows) {
+                values.push(`($${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++},$${idx++})`);
+                params.push(
+                    r.punishment_id, r.steamid, r.name, r.admin_steamid, r.admin_name,
+                    r.reason, r.status, r.duration, r.created, r.expires,
+                    r.type, r.punish_type, r.avatar, r.admin_avatar, Date.now()
+                );
+            }
+            await client.query(
+                `INSERT INTO panel_fear_punishments (punishment_id, steamid, name, admin_steamid, admin_name, reason, status, duration, created, expires, type, punish_type, avatar, admin_avatar, updated_at) VALUES ${values.join(',')}`,
+                params
+            );
+        }
+        await client.query('COMMIT');
+    } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+    } finally {
+        client.release();
+    }
+}
+
+async function getFearPunishmentsStats(since = 0) {
+    const { rows } = await poolQuery(
+        `SELECT
+            admin_steamid,
+            COUNT(*) FILTER (WHERE (type = 0 OR punish_type = 0)) AS bans,
+            COUNT(*) FILTER (WHERE (type = 1 OR punish_type = 1)) AS mutes,
+            COUNT(*) AS total
+         FROM panel_fear_punishments
+         WHERE created >= $1
+         GROUP BY admin_steamid
+         ORDER BY total DESC`,
+        [since]
+    );
+    return rows;
+}
+
+async function getFearPunishmentsByAdmin(adminSteamId, limit = 100, offset = 0) {
+    const { rows } = await poolQuery(
+        'SELECT * FROM panel_fear_punishments WHERE admin_steamid = $1 ORDER BY created DESC LIMIT $2 OFFSET $3',
+        [adminSteamId, limit, offset]
+    );
+    return rows;
+}
+
 async function getActivityByServer(days = 7) {
     const since = Date.now() - days * 24 * 60 * 60 * 1000;
     const { rows } = await poolQuery(
@@ -908,5 +983,8 @@ module.exports = {
     deleteStaffRole,
     getAllStaffRoles,
     getActivityHeatmap,
-    getActivityByServer
+    getActivityByServer,
+    replaceFearPunishments,
+    getFearPunishmentsStats,
+    getFearPunishmentsByAdmin
 };

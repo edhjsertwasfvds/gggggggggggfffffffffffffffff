@@ -9,6 +9,12 @@ const FACEIT_API_KEY = process.env.FACEIT_API_KEY || '';
 const CSSTATS_COOKIE = process.env.CSSTATS_COOKIE || '';
 const DXDCS_COOKIE = process.env.DXDCS_COOKIE || '';
 const PUNISHMENTS_ADMIN_STEAM_ID = process.env.PUNISHMENTS_ADMIN_STEAM_ID || '';
+const FEAR_PUNISHMENTS_ADMIN_IDS = (process.env.FEAR_PUNISHMENTS_ADMIN_IDS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => /^\d{17}$/.test(s));
+const FEAR_PUNISHMENTS_REFRESH_HOURS = Math.max(0.5, Math.min(24, Number(process.env.FEAR_PUNISHMENTS_REFRESH_HOURS || 1)));
+const FEAR_PUNISHMENTS_REFRESH_MS = Math.floor(FEAR_PUNISHMENTS_REFRESH_HOURS * 60 * 60 * 1000);
 /** Bearer или ?token= для GET /api/moderator/players (машинный доступ с Railway и т.п.) */
 const MODERATOR_API_TOKEN = (process.env.MODERATOR_API_TOKEN || '').trim();
 /** Опционально: общий машинный ключ для GET /api/launcher/players (помимо личных ключей пользователей в БД). */
@@ -42,6 +48,9 @@ module.exports = {
     CSSTATS_COOKIE,
     DXDCS_COOKIE,
     PUNISHMENTS_ADMIN_STEAM_ID,
+    FEAR_PUNISHMENTS_ADMIN_IDS,
+    FEAR_PUNISHMENTS_REFRESH_HOURS,
+    FEAR_PUNISHMENTS_REFRESH_MS,
     MODERATOR_API_TOKEN,
     LAUNCHER_API_KEY,
     LAUNCHER_API_TOKEN,

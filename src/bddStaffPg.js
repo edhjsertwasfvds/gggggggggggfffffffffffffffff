@@ -91,7 +91,62 @@ async function searchBddStaff(rawQ) {
     return rows;
 }
 
+async function getStaffPunishments(adminSteamid, type, limit = 10000) {
+    const pool = getPool();
+    if (!pool) return [];
+    const { rows } = await pool.query(
+        `
+        SELECT
+            id,
+            type,
+            steamid,
+            name,
+            admin,
+            admin_steamid,
+            admin_avatar,
+            avatar,
+            reason,
+            status,
+            duration,
+            created,
+            expires,
+            unban_price
+        FROM punishments
+        WHERE admin_steamid = $1 AND type = $2
+        ORDER BY created DESC
+        LIMIT $3
+        `,
+        [adminSteamid, type, limit]
+    );
+    return rows;
+}
+
+async function getStaffPunishmentStats(adminSteamids) {
+    const pool = getPool();
+    if (!pool) return {};
+    if (!Array.isArray(adminSteamids) || adminSteamids.length === 0) return {};
+    const { rows } = await pool.query(
+        `
+        SELECT admin_steamid, type, COUNT(*)::int as count
+        FROM punishments
+        WHERE admin_steamid = ANY($1)
+        GROUP BY admin_steamid, type
+        `,
+        [adminSteamids]
+    );
+    const stats = {};
+    for (const row of rows) {
+        const sid = row.admin_steamid;
+        if (!stats[sid]) stats[sid] = { bans: 0, mutes: 0 };
+        if (Number(row.type) === 1) stats[sid].bans = row.count;
+        if (Number(row.type) === 2) stats[sid].mutes = row.count;
+    }
+    return stats;
+}
+
 module.exports = {
     isConfigured,
-    searchBddStaff
+    searchBddStaff,
+    getStaffPunishments,
+    getStaffPunishmentStats
 };

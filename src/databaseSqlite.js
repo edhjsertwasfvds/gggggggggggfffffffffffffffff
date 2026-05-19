@@ -262,6 +262,26 @@ function initDatabase() {
         updated_by_username TEXT,
         updated_at INTEGER NOT NULL
     )`);
+    db.exec(`CREATE TABLE IF NOT EXISTS fear_punishments (
+        punishment_id INTEGER PRIMARY KEY,
+        steamid TEXT NOT NULL,
+        name TEXT,
+        admin_steamid TEXT NOT NULL,
+        admin_name TEXT,
+        reason TEXT,
+        status INTEGER,
+        duration INTEGER,
+        created INTEGER,
+        expires INTEGER,
+        type INTEGER,
+        punish_type INTEGER,
+        avatar TEXT,
+        admin_avatar TEXT,
+        updated_at INTEGER NOT NULL
+    )`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_fear_pun_admin ON fear_punishments(admin_steamid)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_fear_pun_created ON fear_punishments(created)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_fear_pun_status ON fear_punishments(status)`);
     const bootstrapUsers = getBootstrapUsersFromEnv();
     if (bootstrapUsers.length) {
         for (const u of bootstrapUsers) {
@@ -607,6 +627,39 @@ function getActivityByServer(days = 7) {
     return result;
 }
 
+function replaceFearPunishments(adminSteamId, rows) {
+    db.prepare('DELETE FROM fear_punishments WHERE admin_steamid = ?').run(adminSteamId);
+    const insert = db.prepare(`INSERT INTO fear_punishments (punishment_id, steamid, name, admin_steamid, admin_name, reason, status, duration, created, expires, type, punish_type, avatar, admin_avatar, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    for (const r of rows) {
+        insert.run(
+            r.punishment_id, r.steamid, r.name, r.admin_steamid, r.admin_name,
+            r.reason, r.status, r.duration, r.created, r.expires,
+            r.type, r.punish_type, r.avatar, r.admin_avatar, Date.now()
+        );
+    }
+    saveDb();
+}
+
+function getFearPunishmentsStats(since = 0) {
+    return db.prepare(
+        `SELECT
+            admin_steamid,
+            SUM(CASE WHEN (type = 0 OR punish_type = 0) THEN 1 ELSE 0 END) AS bans,
+            SUM(CASE WHEN (type = 1 OR punish_type = 1) THEN 1 ELSE 0 END) AS mutes,
+            COUNT(*) AS total
+         FROM fear_punishments
+         WHERE created >= ?
+         GROUP BY admin_steamid
+         ORDER BY total DESC`
+    ).all(since);
+}
+
+function getFearPunishmentsByAdmin(adminSteamId, limit = 100, offset = 0) {
+    return db.prepare(
+        'SELECT * FROM fear_punishments WHERE admin_steamid = ? ORDER BY created DESC LIMIT ? OFFSET ?'
+    ).all(adminSteamId, limit, offset);
+}
+
 module.exports = {
     initialize,
     getDbPath, closeDatabase, initDatabase,
@@ -622,5 +675,6 @@ module.exports = {
     saveSession, getSessionFromDb, deleteSessionFromDb, deleteSessionsByUserId, deleteAllSessionsDb, cleanupExpiredSessionsDb, getActiveSessionsFromDb,
     upsertStaffTickets, getStaffTicketsByMonth, getStaffTicketsOne,
     upsertStaffRole, deleteStaffRole, getAllStaffRoles,
-    getActivityHeatmap, getActivityByServer
+    getActivityHeatmap, getActivityByServer,
+    replaceFearPunishments, getFearPunishmentsStats, getFearPunishmentsByAdmin
 };
