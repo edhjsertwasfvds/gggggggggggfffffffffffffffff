@@ -31,25 +31,26 @@ async function refreshStaffList() {
     if (staffPunishmentsCache.staffListLoading) return;
     staffPunishmentsCache.staffListLoading = true;
 
-    // Стафф → Ст. Модер → Модератор → Мл. Модератор (по отображаемому названию и group_name с API).
+    // Стафф: group_id 1 (Модератор), 3 (STAFF), 5 (Ст. Модер), 6 (Мл. Модератор).
+    const allowedGroupIds = new Set([1, 3, 5, 6]);
     const allowedGroupDisplayNames = new Set(['Стафф', 'Стаф', 'Ст. Модер', 'Модератор', 'Мл. Модератор']);
     const allowedGroupNames = new Set(['STAFF', 'STMODER', 'MODER', 'MLMODER']);
-    const allowedByName = new Set(['Quasar']);
 
     const normalizeAdminToStaff = (a) => ({
         steamid: String(a?.steamid || ''),
         name: a?.name || '—',
         avatar_full: a?.avatar_full || '',
         group_display_name: a?.group_display_name || '',
-        group_name: a?.group_name || ''
+        group_name: a?.group_name || '',
+        group_id: a?.group_id ?? null
     });
 
     const filterAdmin = (a) => {
-        const name = a?.name;
+        const gid = Number(a?.group_id);
+        if (Number.isFinite(gid) && allowedGroupIds.has(gid)) return true;
         const group = String(a?.group_display_name || '').trim();
         const gn = String(a?.group_name || '').trim().toUpperCase();
         return (
-            allowedByName.has(name) ||
             allowedGroupDisplayNames.has(group) ||
             allowedGroupNames.has(gn)
         );
