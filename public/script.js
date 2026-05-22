@@ -1080,9 +1080,7 @@ function renderPanel() {
         } else if (players.length > 0) {
             content.innerHTML = buildVacTable(players);
             requestAccountAgeFor(players, 'SteamId');
-            loadFearProfiles(players);
             cleanupAccAgePlaceholders();
-            cleanupProfilePlaceholders();
         } else {
             content.innerHTML = '<p class="text-gray-400 text-sm text-center py-8">Нет игроков с Game банами</p>';
         }
@@ -1105,9 +1103,7 @@ function renderPanel() {
         } else if (filtered.length > 0) {
             content.innerHTML = buildYoomaTable(filtered);
             requestAccountAgeFor(filtered, 'steamId');
-            loadFearProfiles(filtered);
             cleanupAccAgePlaceholders();
-            cleanupProfilePlaceholders();
         } else {
             content.innerHTML = '<p class="text-gray-400 text-sm text-center py-8">Нет забаненных игроков на Yooma</p>';
         }
@@ -1124,9 +1120,7 @@ function renderPanel() {
             content.innerHTML = buildAllPlayersTable(merged);
             staggerRows(content);
             requestAccountAgeFor(merged, 'steamId');
-            loadFearProfiles(merged);
             cleanupAccAgePlaceholders();
-            cleanupProfilePlaceholders();
         }
         return;
     }
@@ -2552,8 +2546,20 @@ function buildSuspiciousRowHtml(p, index) {
     if (vis.player) cells.push(`<td data-column="player" class="py-3 px-3"><div class="flex items-center gap-3"><img src="${p.avatar || DEFAULT_AVATAR}" alt="${escapeHtml(p.nickname || 'Player')}" class="w-9 h-9 rounded-full" onerror="this.src='${DEFAULT_AVATAR}'"><div class="min-w-0"><div class="flex items-center gap-1"><span class="text-white text-sm font-semibold truncate">${escapeHtml(p.nickname || 'Unknown')}</span>${fBadge}${rBadge}</div><div class="mt-0.5 flex items-center gap-2"><div class="text-gray-500 text-xs font-mono truncate">${p.steamId}</div>${connectBtnHtml}</div></div></div></td>`);
     if (vis.flags) cells.push(`<td data-column="flags" class="py-3 px-2"><div class="flex gap-1 flex-wrap">${flagsHtml}</div></td>`);
     if (vis.kd) cells.push(`<td data-column="kd" class="py-3 px-2"><div class="text-gray-400 text-xs font-semibold">${kd} <span class="text-gray-500">(${kills}/${deaths})</span></div></td>`);
-    if (vis.profileKd) cells.push(`<td data-column="profileKd" class="py-3 px-2"><span id="profile-kd-${sid}" class="text-gray-500 text-xs">...</span></td>`);
-    if (vis.profileHours) cells.push(`<td data-column="profileHours" class="py-3 px-2"><span id="profile-hours-${sid}" class="text-gray-500 text-xs">...</span></td>`);
+    if (vis.profileKd) {
+        const pkd = p.profileKd;
+        const pkdHtml = pkd != null
+            ? `<span class="text-gray-400 text-xs font-semibold">${Number(pkd).toFixed(2)}</span>`
+            : '<span class="text-gray-600 text-xs">—</span>';
+        cells.push(`<td data-column="profileKd" class="py-3 px-2">${pkdHtml}</td>`);
+    }
+    if (vis.profileHours) {
+        const ph = p.profileHours;
+        const phHtml = ph != null
+            ? `<span class="text-gray-400 text-xs font-semibold">${ph} ч</span>`
+            : '<span class="text-gray-600 text-xs">—</span>';
+        cells.push(`<td data-column="profileHours" class="py-3 px-2">${phHtml}</td>`);
+    }
     if (vis.accDate) cells.push(`<td data-column="accDate" class="py-3 px-2"><span id="acc-age-${sid}" class="text-gray-500 text-xs">...</span></td>`);
     const canAdd = state.userLevel >= 1 && !p.whitelisted;
     const canRemove = p.whitelisted && (state.userLevel >= 3 || (p.whitelistAddedBy != null && String(p.whitelistAddedBy) === String(state.userId)));
@@ -2843,74 +2849,6 @@ function flushAccAgeBatch() {
 function cleanupAccAgePlaceholders() {
     setTimeout(() => {
         document.querySelectorAll('span[id^="acc-age-"]').forEach(el => {
-            if (el.textContent === '...') {
-                el.textContent = '—';
-                el.className = 'text-gray-600 text-xs';
-            }
-        });
-    }, 8000);
-}
-
-const _profileCache = new Map();
-let _profileFetchPromise = null;
-
-async function loadFearProfiles(players) {
-    const ids = players.map(p => String(p.steamId ?? p.SteamId ?? '')).filter(Boolean);
-    if (ids.length === 0) return;
-    const uncached = ids.filter(sid => !_profileCache.has(sid));
-    if (uncached.length === 0) {
-        applyAllProfileData(ids);
-        return;
-    }
-    if (_profileFetchPromise) {
-        await _profileFetchPromise.catch(() => {});
-        applyAllProfileData(ids);
-        return;
-    }
-    _profileFetchPromise = fetch('/api/fear-profiles-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ steamIds: uncached.slice(0, 200) })
-    }).then(async r => {
-        if (!r.ok) throw new Error('profiles batch error');
-        const data = await r.json();
-        if (Array.isArray(data.results)) {
-            data.results.forEach(item => _profileCache.set(item.steamId, item));
-        }
-    }).catch(() => {
-        uncached.forEach(sid => _profileCache.set(sid, null));
-    }).finally(() => {
-        _profileFetchPromise = null;
-    });
-    await _profileFetchPromise;
-    applyAllProfileData(ids);
-}
-
-function applyAllProfileData(steamIds) {
-    steamIds.forEach(sid => {
-        const data = _profileCache.get(sid);
-        const kdEl = document.getElementById(`profile-kd-${sid}`);
-        if (kdEl) {
-            const hasData = data && data.kills != null && data.deaths != null;
-            const nextHtml = hasData
-                ? `<span class="text-gray-400 text-xs font-semibold">${Number(data.kd).toFixed(2)}</span> <span class="text-gray-500 text-xs">${data.kills}/${data.deaths}</span>`
-                : '<span class="text-gray-600 text-xs">—</span>';
-            if (kdEl.innerHTML !== nextHtml) kdEl.innerHTML = nextHtml;
-        }
-        const hoursEl = document.getElementById(`profile-hours-${sid}`);
-        if (hoursEl) {
-            const hasHours = data && data.playtimeHours != null;
-            const nextText = hasHours ? `${data.playtimeHours} ч` : '—';
-            const nextClass = hasHours ? 'text-gray-400 text-xs font-semibold' : 'text-gray-600 text-xs';
-            if (hoursEl.textContent !== nextText) hoursEl.textContent = nextText;
-            if (hoursEl.className !== nextClass) hoursEl.className = nextClass;
-        }
-    });
-}
-
-function cleanupProfilePlaceholders() {
-    setTimeout(() => {
-        document.querySelectorAll('span[id^="profile-kd-"], span[id^="profile-hours-"]').forEach(el => {
             if (el.textContent === '...') {
                 el.textContent = '—';
                 el.className = 'text-gray-600 text-xs';

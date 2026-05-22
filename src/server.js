@@ -217,7 +217,8 @@ const cache = {
     top2Bans: { data: null, timestamp: 0, ttl: CACHE_TTL_MS },
     playerGames: new Map(),
     accountAge: new Map(),
-    faceitLevels: new Map()
+    faceitLevels: new Map(),
+    fearProfiles: new Map()
 };
 const runtimeMetrics = {
     api: new Map(), // key -> { count, totalMs, maxMs }
@@ -258,7 +259,8 @@ const checkedPlayers = {
     pridecs2: new Map(),
     top2: new Map(),
     accountAge: new Map(),
-    faceit: new Map()
+    faceit: new Map(),
+    fearProfiles: new Map()
 };
 const CHECK_CACHE_TTL = Math.max(60_000, BG_CYCLE_MS);
 
@@ -3645,58 +3647,6 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // Batch fear profiles (kd + hours)
-    if (parsedUrl.pathname === '/api/fear-profiles-batch' && req.method === 'POST') {
-        (async () => {
-            try {
-                let body = '';
-                req.on('data', c => body += c);
-                req.on('end', async () => {
-                    try {
-                        const payload = JSON.parse(body || '{}');
-                        const steamIds = Array.isArray(payload.steamIds) ? payload.steamIds.map(id => String(id)).filter(Boolean) : [];
-                        if (steamIds.length === 0 || steamIds.length > 200) {
-                            sendJson(res, 400, { error: 'Invalid steamIds count (1-200)' });
-                            return;
-                        }
-                        const results = [];
-                        for (const sid2 of steamIds) {
-                            try {
-                                const profile = await new Promise((resolve) => {
-                                    const rq = https.get(`https://api.fearproject.ru/profile/${encodeURIComponent(sid2)}`, (rs) => {
-                                        let d = '';
-                                        rs.on('data', c => d += c);
-                                        rs.on('end', () => {
-                                            try { resolve(JSON.parse(d || '{}')); } catch { resolve({}); }
-                                        });
-                                    });
-                                    rq.setTimeout(5000);
-                                    rq.on('timeout', () => { rq.destroy(); resolve({}); });
-                                    rq.on('error', () => resolve({}));
-                                });
-                                const stats = profile && profile.stats ? profile.stats : null;
-                                const kills = stats && typeof stats.kills === 'number' ? stats.kills : null;
-                                const deaths = stats && typeof stats.deaths === 'number' ? stats.deaths : null;
-                                const kd = (kills != null && deaths != null && deaths > 0) ? kills / deaths : (kills || 0);
-                                const playtime = stats && typeof stats.playtime === 'number' ? stats.playtime : null;
-                                const playtimeHours = playtime != null ? Math.round(playtime / 3600) : null;
-                                results.push({ steamId: sid2, kills, deaths, kd: Number(kd.toFixed(2)), playtimeHours });
-                            } catch (_) {
-                                results.push({ steamId: sid2, kills: null, deaths: null, kd: null, playtimeHours: null });
-                            }
-                        }
-                        sendJson(res, 200, { results });
-                    } catch (e) {
-                        sendJson(res, 400, { error: 'Invalid JSON' });
-                    }
-                });
-            } catch (e) {
-                sendError(res, 500, 'PROFILE_BATCH_ERROR', String(e && e.message ? e.message : e));
-            }
-        })();
-        return;
-    }
-
     // Static files (strictly limited to /public to prevent path traversal)
     const publicDir = path.join(__dirname, '..', 'public');
     const rawUrlPath = String(req.url || '/').split('?')[0];
@@ -4308,6 +4258,7 @@ function sendAllPlayers(ws) {
         const d = playerDataMap.get(steamId);
         const wl = whitelistCache.has(steamId);
         const wlEntry = wl ? whitelistCache.entry(steamId) : null;
+        const fp = cache.fearProfiles.get(steamId);
         return {
             steamId,
             nickname: d ? d.nickname : 'Unknown',
@@ -4320,7 +4271,9 @@ function sendAllPlayers(ws) {
             serverPort: d ? d.serverPort : null,
             ping: d ? d.ping : null,
             whitelisted: wl,
-            whitelistAddedBy: wlEntry ? wlEntry.added_by_discord_id : null
+            whitelistAddedBy: wlEntry ? wlEntry.added_by_discord_id : null,
+            profileKd: fp ? fp.kd : null,
+            profileHours: fp ? fp.playtimeHours : null
         };
     });
     if (ws.readyState === WebSocket.OPEN) {
@@ -4443,7 +4396,8 @@ function createBackgroundJobsForCycle(cycleNo, dataForChecks) {
         () => timedJob('deti00', () => updateDeti00BansInBackground(dataForChecks)),
         () => timedJob('pridecs2', () => updatePrideCS2BansInBackground(dataForChecks)),
         () => timedJob('top2', () => updateTop2BansInBackground(dataForChecks)),
-        () => timedJob('faceit', () => updateFaceitLevelsInBackground(dataForChecks))
+        () => timedJob('faceit', () => updateFaceitLevelsInBackground(dataForChecks)),
+        () => timedJob('fearProfiles', () => updateFearProfilesInBackground(dataForChecks))
     ];
 
     if (!RAILWAY_LIGHT_MODE) return [...criticalJobs, ...heavyJobs];
@@ -5037,5 +4991,76 @@ async function updateFaceitLevelsInBackground(servers) {
 
     console.log(`[Background] Faceit проверено: ${checked}, найдено: ${found}`);
     broadcastUpdate('faceit_levels_update', {});
+}
+
+async function updateFearProfilesInBackground(servers) {
+    console.log('[Background] Обновление профилей Fear (KD + часы)...');
+    const onlineContext = buildOnlinePlayersContext(servers);
+    const steamIds = onlineContext.steamIds;
+
+    if (steamIds.size === 0) return;
+
+    const now = Date.now();
+    const steamIdArray = [...steamIds].filter(sid => {
+        const last = checkedPlayers.fearProfiles.get(sid);
+        if (last && (now - last) < CHECK_CACHE_TTL) return false;
+        return true;
+    });
+
+    if (steamIdArray.length === 0) {
+        console.log('[Background] Все профили Fear уже проверены недавно');
+        return;
+    }
+
+    console.log(`[Background] Проверка Fear профилей: ${steamIdArray.length} новых игроков`);
+    let checked = 0;
+    let found = 0;
+
+    // Параллельно, но не больше 10 одновременно
+    const CONCURRENCY = 10;
+    const queue = [...steamIdArray];
+
+    async function worker() {
+        while (queue.length > 0) {
+            const sid = queue.shift();
+            try {
+                const profile = await new Promise((resolve) => {
+                    const r = https.get(`https://api.fearproject.ru/profile/${encodeURIComponent(sid)}`, (apiRes) => {
+                        let d = '';
+                        apiRes.on('data', c => d += c);
+                        apiRes.on('end', () => { try { resolve(JSON.parse(d || '{}')); } catch { resolve({}); } });
+                    });
+                    r.on('error', () => resolve({}));
+                    r.setTimeout(5000, () => { r.destroy(); resolve({}); });
+                });
+
+                checkedPlayers.fearProfiles.set(sid, Date.now());
+                checked++;
+
+                const stats = profile && profile.stats ? profile.stats : null;
+                if (stats && typeof stats.kills === 'number' && typeof stats.deaths === 'number') {
+                    const kd = stats.deaths > 0 ? stats.kills / stats.deaths : stats.kills || 0;
+                    const playtimeHours = typeof stats.playtime === 'number' ? Math.round(stats.playtime / 3600) : null;
+                    cache.fearProfiles.set(sid, {
+                        kills: stats.kills,
+                        deaths: stats.deaths,
+                        kd: Number(kd.toFixed(2)),
+                        playtimeHours,
+                        timestamp: Date.now()
+                    });
+                    found++;
+                }
+            } catch (err) {
+                checkedPlayers.fearProfiles.set(sid, Date.now());
+                checked++;
+            }
+        }
+    }
+
+    const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, () => worker());
+    await Promise.all(workers);
+
+    console.log(`[Background] Fear профили проверено: ${checked}, найдено: ${found}`);
+    broadcastUpdate('all_players_update', {});
 }
 
