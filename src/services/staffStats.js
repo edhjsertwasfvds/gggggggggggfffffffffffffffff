@@ -2,7 +2,7 @@ const fs = require('fs');
 const https = require('https');
 
 const config = require('../config');
-const bddStaffPg = require('../bddStaffPg');
+const punishments = require('./punishments');
 
 // Кэш стаффа и его статистики наказаний.
 // - список стаффа обновляем раз в 24 часа
@@ -139,72 +139,34 @@ async function refreshStaffPunishmentsCache() {
         }
 
         const dataBySteamId = {};
-        const useBdd = bddStaffPg.isConfigured();
-
-        if (useBdd) {
-            let cursor = 0;
-            const workerCount = Math.max(1, Math.min(STAFF_STATS_FETCH_CONCURRENCY, staffList.length));
-            const workers = Array.from({ length: workerCount }, async () => {
-                while (true) {
-                    const i = cursor++;
-                    if (i >= staffList.length) return;
-                    const sid = String(staffList[i]?.steamid || '');
-                    if (!sid) continue;
-                    try {
-                        const [bans, mutes] = await Promise.all([
-                            bddStaffPg.getStaffPunishments(sid, 1, 10000),
-                            bddStaffPg.getStaffPunishments(sid, 2, 10000)
-                        ]);
-                        const mapRow = (row, type) => ({
-                            id: row.id,
-                            steamid: row.steamid,
-                            name: row.name,
-                            admin: row.admin,
-                            admin_steamid: row.admin_steamid,
-                            admin_avatar: row.admin_avatar,
-                            avatar: row.avatar,
-                            reason: row.reason,
-                            status: row.status,
-                            duration: row.duration,
-                            created: Number(row.created),
-                            expires: Number(row.expires),
-                            unbanPrice: row.unban_price,
-                            type: type,
-                            ban_reason: row.reason,
-                            punish_reason: row.reason,
-                            text: row.reason,
-                            comment: row.reason,
-                            desc: row.reason,
-                            message: row.reason,
-                            date: row.created,
-                            timestamp: row.created,
-                            time: row.created,
-                            punish_time: row.created,
-                            ban_time: row.created,
-                            issue_time: row.created,
-                            start_time: row.created
-                        });
-                        dataBySteamId[sid] = [
-                            ...bans.map(r => mapRow(r, 1)),
-                            ...mutes.map(r => mapRow(r, 2))
-                        ];
-                    } catch (_) {
-                        dataBySteamId[sid] = [];
-                    }
-                    if (PUNISHMENTS_DELAY_MS > 0) await sleep(PUNISHMENTS_DELAY_MS);
+        let cursor = 0;
+        const workerCount = Math.max(1, Math.min(STAFF_STATS_FETCH_CONCURRENCY, staffList.length));
+        const workers = Array.from({ length: workerCount }, async () => {
+            while (true) {
+                const i = cursor++;
+                if (i >= staffList.length) return;
+                const sid = String(staffList[i]?.steamid || '');
+                if (!sid) continue;
+                const fromCache = punishments.getPunishmentsFromCache(sid);
+                if (Array.isArray(fromCache)) {
+                    dataBySteamId[sid] = fromCache;
+                    continue;
                 }
-            });
-            await Promise.all(workers);
-            staffPunishmentsCache.dataBySteamId = dataBySteamId;
-            staffPunishmentsCache.lastUpdated = Date.now();
-            console.log('[Staff stats] Обновлена статистика наказаний стафа (BDD):', staffList.length, 'чел.');
-            return;
-        }
-
-        // Fallback disabled: BDD is required for staff punishments.
-        staffPunishmentsCache.dataBySteamId = {};
+                try {
+                    const { punishments: list } = await punishments.fetchPunishmentsForSteamId(sid);
+                    const normalizedList = Array.isArray(list) ? list : [];
+                    dataBySteamId[sid] = normalizedList;
+                    punishments.setPunishmentsToCache(sid, normalizedList);
+                } catch (_) {
+                    dataBySteamId[sid] = [];
+                }
+                if (PUNISHMENTS_DELAY_MS > 0) await sleep(PUNISHMENTS_DELAY_MS);
+            }
+        });
+        await Promise.all(workers);
+        staffPunishmentsCache.dataBySteamId = dataBySteamId;
         staffPunishmentsCache.lastUpdated = Date.now();
-        console.log('[Staff stats] BDD not configured, punishments cache cleared');
+        console.log('[Staff stats] Обновлена статистика наказаний стафа:', staffList.length, 'чел.');
     } finally {
         staffPunishmentsCache.loading = false;
     }
