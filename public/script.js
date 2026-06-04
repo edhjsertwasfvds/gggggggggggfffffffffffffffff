@@ -1519,7 +1519,7 @@ function renderPanel() {
                                     ${secure && !isOldTable ? (() => {
                                         const sid = String(r.admin_steamid || '');
                                         const cur = (ticketsMap && ticketsMap[sid] != null) ? ticketsMap[sid] : 0;
-                                        const pr = window.StaffStatsSecure.computePayoutRow(r, cur, rolesMap[String(r.admin_steamid)] || 'AUTO', (state.punishments.staffCheckRanksBySid || {})[String(r.admin_steamid)] || '');
+                                        const pr = (payoutRows && payoutRows[i]) || window.StaffStatsSecure.computePayoutRow(r, cur, rolesMap[String(r.admin_steamid)] || 'AUTO', (state.punishments.staffCheckRanksBySid || {})[String(r.admin_steamid)] || '');
                                         const fixed = pr.pay.fixed || 0;
                                         return `
                                         <td class="py-3 px-2">
