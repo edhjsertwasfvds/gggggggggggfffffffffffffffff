@@ -22,7 +22,7 @@ const state = {
     trackedMenuOpen: false,
     trackedPlayers: [],
     trackedPlayersLoading: false,
-    punishments: { count: 0, list: [], loading: false, lastSteamId: '', selectedMonth: null, view: 'list', staffList: null, staffStatsRows: null, staffStatsLoading: false, staffStatsData: {}, staffStatsProgress: null, staffTicketsYm: null, staffTicketsBySid: {}, staffTicketsLoading: false, staffRolesBySid: {}, staffRolesLoading: false, staffPayConfig: {}, secureLoaded: false, staffTableMode: 'new', statsPeriodMode: 'month', selectedWeekStart: null, lastLoadedAt: 0, lastSource: '' },
+    punishments: { count: 0, list: [], loading: false, lastSteamId: '', selectedMonth: null, view: 'list', staffList: null, staffStatsRows: null, staffStatsLoading: false, staffStatsData: {}, staffStatsProgress: null, staffTicketsYm: null, staffTicketsBySid: {}, staffTicketsLoading: false, staffRolesBySid: {}, staffRolesLoading: false, staffCheckRanksBySid: {}, staffCheckRanksLoading: false, staffPayConfig: {}, secureLoaded: false, staffTableMode: 'new', statsPeriodMode: 'month', selectedWeekStart: null, lastLoadedAt: 0, lastSource: '' },
     changesTab: 'roles',
     rolesEditor: { authMode: 'cookie', accessToken: '', steamid: '', name: '', adminId: '', roleName: 'Модератор', log: [] }
 };
@@ -1373,6 +1373,14 @@ function renderPanel() {
                 if (c === 'ML') return 'МЛ';
                 return '—';
             };
+            const checkRankLabelRu = (code) => {
+                const c = String(code || '').trim().toUpperCase();
+                if (c === 'BETA') return 'Бета';
+                if (c === 'GAMMA') return 'Гамма';
+                if (c === 'ALPHA') return 'Альфа';
+                if (c === 'METHOD') return 'Метод';
+                return '';
+            };
             const roleRank = (roleRaw) => {
                 const r = String(roleRaw || '').trim().toUpperCase();
                 if (r === 'GA') return 0;
@@ -1481,7 +1489,12 @@ function renderPanel() {
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="py-3 px-2 text-gray-300 text-xs font-semibold">${escapeHtml(roleLabelRu(resolveRoleCode(r)))}</td>
+                                    <td class="py-3 px-2 text-gray-300 text-xs font-semibold">
+                                        ${escapeHtml(roleLabelRu(resolveRoleCode(r)))}
+                                        ${(state.punishments.staffCheckRanksBySid || {})[String(r.admin_steamid || '')]
+                                            ? `<div class="text-[10px] text-indigo-300 mt-0.5">${escapeHtml(checkRankLabelRu((state.punishments.staffCheckRanksBySid || {})[String(r.admin_steamid || '')]))}</div>`
+                                            : ''}
+                                    </td>
                                     <td class="py-3 px-2 text-rose-400 font-semibold">${r.bans || '<span class="text-gray-600">0</span>'}</td>
                                     <td class="py-3 px-2 text-amber-400 font-semibold">${r.mutes || '<span class="text-gray-600">0</span>'}</td>
                                     <td class="py-3 px-2 ${r.sum > 0 ? 'text-emerald-400 font-bold' : 'text-gray-600'}">${r.sum}</td>
@@ -1783,6 +1796,7 @@ function setPunishmentsView(view) {
                 loadStaffPayConfig();
                 loadStaffStatsFromServer();
                 loadStaffRoles();
+                loadStaffCheckRanks();
                 loadStaffTicketsForSelectedMonth();
             });
         }
@@ -1868,6 +1882,29 @@ async function loadStaffRoles() {
         state.punishments.staffRolesBySid = {};
     } finally {
         state.punishments.staffRolesLoading = false;
+        if (state.openCategory === 'Наказания') scheduleRenderPanel();
+    }
+}
+
+async function loadStaffCheckRanks() {
+    if (getUserLevel() < 4) return;
+    if (state.punishments.staffCheckRanksLoading) return;
+    state.punishments.staffCheckRanksLoading = true;
+    try {
+        const res = await fetch('/api/staff-check-ranks', { headers: apiAuthHeaders() });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        const map = {};
+        (Array.isArray(data.ranks) ? data.ranks : []).forEach(r => {
+            const sid = String(r.steam_id || '').trim();
+            const rank = String(r.rank || '').trim();
+            if (sid && rank) map[sid] = rank;
+        });
+        state.punishments.staffCheckRanksBySid = map;
+    } catch (_) {
+        state.punishments.staffCheckRanksBySid = {};
+    } finally {
+        state.punishments.staffCheckRanksLoading = false;
         if (state.openCategory === 'Наказания') scheduleRenderPanel();
     }
 }

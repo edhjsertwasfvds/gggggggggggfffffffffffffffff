@@ -172,6 +172,13 @@ async function initDatabase() {
             updated_by_username TEXT,
             updated_at BIGINT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS panel_staff_check_ranks (
+            steam_id TEXT PRIMARY KEY,
+            rank TEXT NOT NULL DEFAULT '',
+            updated_by_user_id INTEGER,
+            updated_by_username TEXT,
+            updated_at BIGINT NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS panel_fear_punishments (
             punishment_id INTEGER PRIMARY KEY,
             steamid TEXT NOT NULL,
@@ -200,6 +207,7 @@ async function initDatabase() {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_panel_users_username ON panel_users(username);
         CREATE INDEX IF NOT EXISTS idx_panel_staff_tickets_ym ON panel_staff_tickets(ym);
         CREATE INDEX IF NOT EXISTS idx_panel_staff_tickets_sid ON panel_staff_tickets(steam_id);
+        CREATE INDEX IF NOT EXISTS idx_panel_staff_check_ranks_sid ON panel_staff_check_ranks(steam_id);
         CREATE INDEX IF NOT EXISTS idx_panel_fear_pun_admin ON panel_fear_punishments(admin_steamid);
         CREATE INDEX IF NOT EXISTS idx_panel_fear_pun_created ON panel_fear_punishments(created);
         CREATE INDEX IF NOT EXISTS idx_panel_fear_pun_status ON panel_fear_punishments(status);
@@ -361,6 +369,39 @@ async function deleteStaffRole(steamId) {
 async function getAllStaffRoles() {
     const { rows } = await poolQuery(
         'SELECT steam_id, role, updated_by_user_id, updated_by_username, updated_at FROM panel_staff_roles',
+        []
+    );
+    return rows;
+}
+
+async function upsertStaffCheckRank(steamId, rank, updatedByUserId, updatedByUsername) {
+    const sid = String(steamId || '').trim();
+    const r = String(rank || '').trim();
+    if (!sid || !r) return false;
+    const now = Date.now();
+    await poolQuery(
+        `INSERT INTO panel_staff_check_ranks (steam_id, rank, updated_by_user_id, updated_by_username, updated_at)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (steam_id) DO UPDATE SET
+           rank = EXCLUDED.rank,
+           updated_by_user_id = EXCLUDED.updated_by_user_id,
+           updated_by_username = EXCLUDED.updated_by_username,
+           updated_at = EXCLUDED.updated_at`,
+        [sid, r, updatedByUserId != null ? Number(updatedByUserId) : null, String(updatedByUsername || ''), now]
+    );
+    return true;
+}
+
+async function deleteStaffCheckRank(steamId) {
+    const sid = String(steamId || '').trim();
+    if (!sid) return false;
+    const r = await poolQuery('DELETE FROM panel_staff_check_ranks WHERE steam_id = $1', [sid]);
+    return r.rowCount > 0;
+}
+
+async function getAllStaffCheckRanks() {
+    const { rows } = await poolQuery(
+        'SELECT steam_id, rank, updated_by_user_id, updated_by_username, updated_at FROM panel_staff_check_ranks',
         []
     );
     return rows;
@@ -982,6 +1023,9 @@ module.exports = {
     upsertStaffRole,
     deleteStaffRole,
     getAllStaffRoles,
+    upsertStaffCheckRank,
+    deleteStaffCheckRank,
+    getAllStaffCheckRanks,
     getActivityHeatmap,
     getActivityByServer,
     replaceFearPunishments,

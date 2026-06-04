@@ -262,6 +262,14 @@ function initDatabase() {
         updated_by_username TEXT,
         updated_at INTEGER NOT NULL
     )`);
+    // Ранги проверки стаффа (Бета / Гамма / Альфа / Метод).
+    db.exec(`CREATE TABLE IF NOT EXISTS staff_check_ranks (
+        steam_id TEXT PRIMARY KEY,
+        rank TEXT NOT NULL DEFAULT '',
+        updated_by_user_id INTEGER,
+        updated_by_username TEXT,
+        updated_at INTEGER NOT NULL
+    )`);
     db.exec(`CREATE TABLE IF NOT EXISTS fear_punishments (
         punishment_id INTEGER PRIMARY KEY,
         steamid TEXT NOT NULL,
@@ -358,6 +366,29 @@ function deleteStaffRole(steamId) {
 
 function getAllStaffRoles() {
     return db.prepare('SELECT steam_id, role, updated_by_user_id, updated_by_username, updated_at FROM staff_roles').all();
+}
+
+function upsertStaffCheckRank(steamId, rank, updatedByUserId, updatedByUsername) {
+    const sid = String(steamId || '').trim();
+    const r = String(rank || '').trim();
+    if (!sid || !r) return false;
+    const now = Date.now();
+    db.prepare(
+        `INSERT OR REPLACE INTO staff_check_ranks (steam_id, rank, updated_by_user_id, updated_by_username, updated_at)
+         VALUES (?, ?, ?, ?, ?)`
+    ).run(sid, r, updatedByUserId != null ? Number(updatedByUserId) : null, String(updatedByUsername || ''), now);
+    return true;
+}
+
+function deleteStaffCheckRank(steamId) {
+    const sid = String(steamId || '').trim();
+    if (!sid) return false;
+    const res = db.prepare('DELETE FROM staff_check_ranks WHERE steam_id = ?').run(sid);
+    return res.changes > 0;
+}
+
+function getAllStaffCheckRanks() {
+    return db.prepare('SELECT steam_id, rank, updated_by_user_id, updated_by_username, updated_at FROM staff_check_ranks').all();
 }
 
 function logAction(userId, userName, actionType, targetSteamId, targetName, details, ipAddress) {
@@ -674,7 +705,12 @@ module.exports = {
     createInviteCode, useInviteCode, validateInviteCode, getInviteCodes, deleteInviteCode,
     saveSession, getSessionFromDb, deleteSessionFromDb, deleteSessionsByUserId, deleteAllSessionsDb, cleanupExpiredSessionsDb, getActiveSessionsFromDb,
     upsertStaffTickets, getStaffTicketsByMonth, getStaffTicketsOne,
-    upsertStaffRole, deleteStaffRole, getAllStaffRoles,
+    upsertStaffRole,
+    deleteStaffRole,
+    getAllStaffRoles,
+    upsertStaffCheckRank,
+    deleteStaffCheckRank,
+    getAllStaffCheckRanks,
     getActivityHeatmap, getActivityByServer,
     replaceFearPunishments, getFearPunishmentsStats, getFearPunishmentsByAdmin
 };

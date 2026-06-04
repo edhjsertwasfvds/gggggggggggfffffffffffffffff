@@ -849,6 +849,7 @@
         }
 
         let staffRolesBySid = {};
+        let staffCheckRanksBySid = {};
         let staffHiddenSiteIds = new Set();
 
         async function saveStaffHiddenSiteIds() {
@@ -905,6 +906,20 @@
                     }
                 } catch (_) {}
 
+                // Подтягиваем ранги проверки.
+                staffCheckRanksBySid = {};
+                try {
+                    const rankRes = await fetch('/api/staff-check-ranks', { headers: authHeaders() });
+                    if (rankRes.ok) {
+                        const rankData = await rankRes.json().catch(() => ({}));
+                        (Array.isArray(rankData.ranks) ? rankData.ranks : []).forEach(r => {
+                            const sid = String(r.steam_id || '').trim();
+                            const rank = String(r.rank || '').trim();
+                            if (sid && rank) staffCheckRanksBySid[sid] = rank;
+                        });
+                    }
+                } catch (_) {}
+
                 const lastUpdated = data.lastUpdated ? new Date(data.lastUpdated).toLocaleString('ru') : '—';
                 if (staffLast) staffLast.textContent = `Обновлено: ${lastUpdated} (${list.length} чел.)`;
 
@@ -928,6 +943,16 @@
                                 <span class="text-[10px] text-gray-500">Роль для выплат</span>
                            </div>`
                         : '';
+                    const rankMap = { '': '—', BETA: 'Бета (0р)', GAMMA: 'Гамма (500р)', ALPHA: 'Альфа (750р)', METHOD: 'Метод (1000р)' };
+                    const currentRank = (staffCheckRanksBySid[sid] || '').toUpperCase();
+                    const rankSelectHtml = canEditRole
+                        ? `<div class="mt-1 flex items-center gap-2">
+                                <select onchange="changeStaffCheckRank('${esc(sid)}', this.value)" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-gray-200 focus:outline-none focus:border-indigo-500 cursor-pointer">
+                                    ${Object.entries(rankMap).map(([value, label]) => `<option value="${value}" ${(value === currentRank || (value === '' && !currentRank)) ? 'selected' : ''}>${label}</option>`).join('')}
+                                </select>
+                                <span class="text-[10px] text-gray-500">Ранг проверки</span>
+                           </div>`
+                        : '';
                     const hideOnSiteHtml =
                         currentUserLevel >= 4 && sid
                             ? `<label class="flex items-center gap-2 mt-1.5 text-[10px] text-gray-400 cursor-pointer select-none">
@@ -943,6 +968,7 @@
                                 <div class="text-gray-500 text-xs font-mono">${esc(s.steamid || '')}</div>
                                 <div class="text-gray-400 text-xs">${esc(s.group_display_name || '')}</div>
                                 ${roleSelectHtml}
+                                ${rankSelectHtml}
                                 ${hideOnSiteHtml}
                             </div>
                         </div>
@@ -973,6 +999,28 @@
                 else staffRolesBySid[sid] = r;
             } catch (_) {
                 alert('Ошибка сохранения роли');
+            }
+        }
+
+        async function changeStaffCheckRank(steamId, rank) {
+            const sid = String(steamId || '').trim();
+            const r = String(rank || '').trim();
+            if (!sid) return;
+            try {
+                const res = await fetch('/api/staff-check-ranks', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ steamId: sid, rank: r })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) {
+                    alert(data.error || 'Не удалось сохранить ранг');
+                    return;
+                }
+                if (!r) delete staffCheckRanksBySid[sid];
+                else staffCheckRanksBySid[sid] = r.toUpperCase();
+            } catch (_) {
+                alert('Ошибка сохранения ранга');
             }
         }
 

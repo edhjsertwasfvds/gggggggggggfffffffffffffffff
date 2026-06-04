@@ -2406,6 +2406,63 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // --- Staff check ranks (Бета / Гамма / Альфа / Метод) — level >= 4 view, >= 5 edit ---
+    if (req.url === '/api/staff-check-ranks' && req.method === 'GET') {
+        const session = await getSessionFromReq(req);
+        if (!session || session.level < USER_LEVEL_ADMIN) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Недостаточно прав' }));
+            return;
+        }
+        const ranks = await db.getAllStaffCheckRanks();
+        sendJson(res, 200, { ranks });
+        return;
+    }
+    if (req.url === '/api/staff-check-ranks' && req.method === 'POST') {
+        const session = await getSessionFromReq(req);
+        if (!session || session.level < USER_LEVEL_SUPER) {
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Недостаточно прав (нужен уровень 5)' }));
+            return;
+        }
+        let body = '';
+        let bodySize = 0;
+        let bodyTooLarge = false;
+        req.on('data', chunk => {
+            if (bodyTooLarge) return;
+            bodySize += chunk.length;
+            if (bodySize > MAX_REQUEST_BODY_BYTES) {
+                bodyTooLarge = true;
+                try { sendError(res, 413, 'PAYLOAD_TOO_LARGE', 'Payload too large'); } catch (_) {}
+                req.destroy();
+                return;
+            }
+            body += chunk;
+        });
+        req.on('end', async () => {
+            try {
+                const { steamId, rank } = JSON.parse(body || '{}');
+                const sid = String(steamId || '').trim();
+                const rawRank = String(rank || '').trim();
+                const allowed = new Set(['BETA', 'GAMMA', 'ALPHA', 'METHOD', '']);
+                if (!sid || !allowed.has(rawRank.toUpperCase())) {
+                    sendError(res, 400, 'BAD_REQUEST', 'Некорректные данные');
+                    return;
+                }
+                if (!rawRank) {
+                    await db.deleteStaffCheckRank(sid);
+                } else {
+                    await db.upsertStaffCheckRank(sid, rawRank, session.userId, session.username);
+                }
+                sendJson(res, 200, { ok: true });
+                safeLog(session, 'staff_check_rank_set', sid, null, `rank=${rawRank}`);
+            } catch (_) {
+                sendError(res, 400, 'INVALID_JSON', 'Invalid JSON');
+            }
+        });
+        return;
+    }
+
     // --- Staff payroll config (norms) for staff stats (level >= 4) ---
     if (req.url === '/api/staff-pay-config' && req.method === 'GET') {
         const session = await getSessionFromReq(req);
