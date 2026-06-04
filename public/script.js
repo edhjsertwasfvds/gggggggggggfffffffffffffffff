@@ -1415,7 +1415,7 @@ function renderPanel() {
             const totalSum = statsRows.reduce((s, r) => s + (Number(r.sum) || 0), 0);
             const secure = !!(window.StaffStatsSecure && typeof window.StaffStatsSecure.computePayoutRow === 'function');
             const ticketsMap = state.punishments.staffTicketsBySid || {};
-            const payoutRows = secure
+            let payoutRows = secure
                 ? statsRows.map(r => window.StaffStatsSecure.computePayoutRow(
                     r,
                     ticketsMap[String(r.admin_steamid)] || 0,
@@ -1423,6 +1423,9 @@ function renderPanel() {
                     (state.punishments.staffCheckRanksBySid || {})[String(r.admin_steamid)] || ''
                 ))
                 : [];
+            if (secure && payoutRows.length && typeof window.StaffStatsSecure.addTopPrizes === 'function') {
+                payoutRows = window.StaffStatsSecure.addTopPrizes(payoutRows);
+            }
             const totalTickets = secure ? payoutRows.reduce((s, r) => s + (r.tickets || 0), 0) : 0;
             const totalPay = secure ? payoutRows.reduce((s, r) => s + (r.pay?.total || 0), 0) : 0;
 
@@ -1528,7 +1531,7 @@ function renderPanel() {
                                         </td>
                                         <td class="py-3 px-2 text-white font-semibold">
                                             ${pr.pay.total}
-                                            <div class="text-[10px] text-gray-600 mt-1">б:${pr.pay.bans} м:${pr.pay.mutes} т:${pr.pay.tickets}${fixed ? ` +фикс:${fixed}` : ''}${pr.pay.rank ? ` +ранг:${pr.pay.rank}` : ''}</div>
+                                            <div class="text-[10px] text-gray-600 mt-1">б:${pr.pay.bans} м:${pr.pay.mutes} т:${pr.pay.tickets}${fixed ? ` +фикс:${fixed}` : ''}${pr.pay.rank ? ` +ранг:${pr.pay.rank}` : ''}${pr.pay.topPunish ? ` +топН:${pr.pay.topPunish}` : ''}${pr.pay.topTickets ? ` +топТ:${pr.pay.topTickets}` : ''}</div>
                                         </td>`;
                                     })() : ''}
                                 </tr>
@@ -1946,7 +1949,10 @@ function exportStaffStatsCsv() {
         return;
     }
     const ranks = state.punishments.staffCheckRanksBySid || {};
-    const payout = rows.map(r => window.StaffStatsSecure.computePayoutRow(r, map[String(r.admin_steamid)] || 0, roles[String(r.admin_steamid)] || 'AUTO', ranks[String(r.admin_steamid)] || ''));
+    let payout = rows.map(r => window.StaffStatsSecure.computePayoutRow(r, map[String(r.admin_steamid)] || 0, roles[String(r.admin_steamid)] || 'AUTO', ranks[String(r.admin_steamid)] || ''));
+    if (typeof window.StaffStatsSecure.addTopPrizes === 'function') {
+        payout = window.StaffStatsSecure.addTopPrizes(payout);
+    }
     const ym = getEffectiveYm(state.punishments.selectedMonth);
     const csv = window.StaffStatsSecure.toCsv(payout);
     window.StaffStatsSecure.downloadCsv(`staff-stats-${ym}.csv`, csv);

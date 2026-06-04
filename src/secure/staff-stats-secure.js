@@ -321,6 +321,8 @@
             'pay_tickets',
             'pay_fixed',
             'pay_rank',
+            'pay_top_punish',
+            'pay_top_tickets',
             'pay_total'
         ];
         const lines = [header.join(';')];
@@ -342,11 +344,43 @@
                 escape(toInt(r.pay?.tickets, 0)),
                 escape(toInt(r.pay?.fixed, 0)),
                 escape(toInt(r.pay?.rank, 0)),
+                escape(toInt(r.pay?.topPunish, 0)),
+                escape(toInt(r.pay?.topTickets, 0)),
                 escape(toInt(r.pay?.total, 0))
             ].join(';'));
         });
         // Excel (RU) обычно любит ; и Windows-1251, но сделаем UTF-8 с BOM.
         return '\uFEFF' + lines.join('\r\n');
+    }
+
+    const TOP_PRIZES = [1500, 1250, 1000];
+
+    function addTopPrizes(payoutRows) {
+        const rows = Array.isArray(payoutRows) ? payoutRows.slice() : [];
+        // Младшие (ML) не участвуют в топах
+        const eligible = rows.filter(r => normalizeRole(r.role) !== 'ML');
+
+        // Топ по наказаниям (bans + mutes)
+        const byPunish = [...eligible].sort((a, b) => ((b.bans || 0) + (b.mutes || 0)) - ((a.bans || 0) + (a.mutes || 0)));
+        byPunish.slice(0, 3).forEach((r, idx) => {
+            const prize = TOP_PRIZES[idx] || 0;
+            if (!prize) return;
+            r.pay = r.pay || {};
+            r.pay.topPunish = (r.pay.topPunish || 0) + prize;
+            r.pay.total = (r.pay.total || 0) + prize;
+        });
+
+        // Топ по тикетам
+        const byTickets = [...eligible].sort((a, b) => (b.tickets || 0) - (a.tickets || 0));
+        byTickets.slice(0, 3).forEach((r, idx) => {
+            const prize = TOP_PRIZES[idx] || 0;
+            if (!prize) return;
+            r.pay = r.pay || {};
+            r.pay.topTickets = (r.pay.topTickets || 0) + prize;
+            r.pay.total = (r.pay.total || 0) + prize;
+        });
+
+        return rows;
     }
 
     function downloadCsv(filename, csv) {
@@ -377,6 +411,7 @@
         computeStaffStatsRowsSecure,
         computeStaffStatsRowsOld,
         computePayoutRow,
+        addTopPrizes,
         toCsv,
         downloadCsv
     };
