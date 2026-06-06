@@ -2406,6 +2406,69 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // --- Account age batch (Steam API) — level >= 1 ---
+    if (req.url === '/api/account-age-batch' && req.method === 'POST') {
+        const session = await getSessionFromReq(req);
+        if (!session) {
+            sendError(res, 401, 'UNAUTHORIZED', 'Не авторизован');
+            return;
+        }
+        let body = '';
+        let bodySize = 0;
+        let bodyTooLarge = false;
+        req.on('data', chunk => {
+            if (bodyTooLarge) return;
+            bodySize += chunk.length;
+            if (bodySize > MAX_REQUEST_BODY_BYTES) {
+                bodyTooLarge = true;
+                try { sendError(res, 413, 'PAYLOAD_TOO_LARGE', 'Payload too large'); } catch (_) {}
+                req.destroy();
+                return;
+            }
+            body += chunk;
+        });
+        req.on('end', async () => {
+            try {
+                const { steamIds } = JSON.parse(body || '{}');
+                const ids = Array.isArray(steamIds) ? steamIds.map(id => String(id)).filter(sid => /^\d{5,}$/.test(sid)) : [];
+                if (ids.length === 0 || ids.length > 100) {
+                    sendError(res, 400, 'BAD_REQUEST', 'Invalid steamIds (1-100)');
+                    return;
+                }
+                if (!STEAM_API_KEY) {
+                    sendJson(res, 200, { results: ids.map(sid => ({ steamId: sid, created: 0 })) });
+                    return;
+                }
+                const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${encodeURIComponent(ids.join(','))}`;
+                const data = await new Promise((resolve) => {
+                    https.get(url, { timeout: 10000 }, (apiRes) => {
+                        let apiData = '';
+                        apiRes.on('data', chunk => apiData += chunk);
+                        apiRes.on('end', () => {
+                            try {
+                                const result = JSON.parse(apiData || '{}');
+                                const players = result.response?.players || [];
+                                const playerMap = new Map(players.map(p => [p.steamid, p.timecreated || 0]));
+                                const results = ids.map(sid => ({ steamId: sid, created: playerMap.get(sid) || 0 }));
+                                resolve(results);
+                            } catch (_) {
+                                resolve(ids.map(sid => ({ steamId: sid, created: 0 })));
+                            }
+                        });
+                    }).on('error', () => {
+                        resolve(ids.map(sid => ({ steamId: sid, created: 0 })));
+                    }).on('timeout', () => {
+                        resolve(ids.map(sid => ({ steamId: sid, created: 0 })));
+                    });
+                });
+                sendJson(res, 200, { results: data });
+            } catch (_) {
+                sendError(res, 400, 'INVALID_JSON', 'Invalid JSON');
+            }
+        });
+        return;
+    }
+
     // --- Staff check ranks (Бета / Гамма / Альфа / Метод) — level >= 4 view, >= 5 edit ---
     if (req.url === '/api/staff-check-ranks' && req.method === 'GET') {
         const session = await getSessionFromReq(req);
