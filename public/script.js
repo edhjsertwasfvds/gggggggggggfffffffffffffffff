@@ -2868,25 +2868,30 @@ function requestAccountAgeFor(players, idKey) {
 function flushAccAgeBatch() {
     _accAgeBatchTimer = null;
     const ids = _accAgeBatchQueue.splice(0);
-    console.log('[AccAge] flushAccAgeBatch: fetching', ids.length, 'ids via REST');
     if (ids.length === 0) return;
-    fetch('/api/account-age-batch', {
-        method: 'POST',
-        headers: apiAuthHeaders(),
-        body: JSON.stringify({ steamIds: ids })
-    }).then(r => {
-        if (!r.ok) return Promise.reject(new Error(r.status));
-        return r.json();
-    }).then(data => {
-        console.log('[AccAge] REST response received, results:', data?.results?.length);
-        if (Array.isArray(data?.results)) {
-            data.results.forEach(r => applyAccountAge(r, { scheduleRefresh: false }));
-            if (isPlayersCategoryOpen() && isCreatedSortActive()) {
-                schedulePlayersPanelRefresh(false, 120);
+    const BATCH_SIZE = 200;
+    const batches = [];
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        batches.push(ids.slice(i, i + BATCH_SIZE));
+    }
+    batches.forEach(batch => {
+        fetch('/api/account-age-batch', {
+            method: 'POST',
+            headers: apiAuthHeaders(),
+            body: JSON.stringify({ steamIds: batch })
+        }).then(r => {
+            if (!r.ok) return Promise.reject(new Error(r.status));
+            return r.json();
+        }).then(data => {
+            if (Array.isArray(data?.results)) {
+                data.results.forEach(r => applyAccountAge(r, { scheduleRefresh: false }));
+                if (isPlayersCategoryOpen() && isCreatedSortActive()) {
+                    schedulePlayersPanelRefresh(false, 120);
+                }
             }
-        }
-    }).catch(err => {
-        console.error('[AccAge] REST fetch error:', err);
+        }).catch(err => {
+            console.error('[AccAge] REST fetch error:', err);
+        });
     });
 }
 

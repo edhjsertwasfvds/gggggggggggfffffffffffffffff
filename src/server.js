@@ -2431,8 +2431,8 @@ const server = http.createServer(async (req, res) => {
             try {
                 const { steamIds } = JSON.parse(body || '{}');
                 const ids = Array.isArray(steamIds) ? steamIds.map(id => String(id)).filter(sid => /^\d{5,}$/.test(sid)) : [];
-                if (ids.length === 0 || ids.length > 100) {
-                    sendError(res, 400, 'BAD_REQUEST', 'Invalid steamIds (1-100)');
+                if (ids.length === 0 || ids.length > 200) {
+                    sendError(res, 400, 'BAD_REQUEST', 'Invalid steamIds (1-200)');
                     return;
                 }
                 if (!STEAM_API_KEY) {
