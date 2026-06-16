@@ -2530,51 +2530,71 @@ const server = http.createServer(async (req, res) => {
 
     // --- Staff analytics (level >= 4) ---
     if (req.url.startsWith('/api/staff-analytics/daily') && req.method === 'GET') {
-        const session = await getSessionFromReq(req);
-        if (!session || session.level < USER_LEVEL_ADMIN) {
-            sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав');
-            return;
+        try {
+            const session = await getSessionFromReq(req);
+            if (!session || session.level < USER_LEVEL_ADMIN) {
+                sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав');
+                return;
+            }
+            const days = Math.min(30, Math.max(1, Number(new URL(req.url, 'http://localhost').searchParams.get('days')) || 7));
+            const rows = await db.getStaffPunishmentsDaily(days);
+            sendJson(res, 200, { rows });
+        } catch (e) {
+            console.error('[Analytics daily] Error:', e?.message || e);
+            sendError(res, 500, 'INTERNAL_ERROR', 'Ошибка базы данных');
         }
-        const days = Math.min(30, Math.max(1, Number(new URL(req.url, 'http://localhost').searchParams.get('days')) || 7));
-        const rows = await db.getStaffPunishmentsDaily(days);
-        sendJson(res, 200, { rows });
         return;
     }
     if (req.url.startsWith('/api/staff-analytics/trend') && req.method === 'GET') {
-        const session = await getSessionFromReq(req);
-        if (!session || session.level < USER_LEVEL_ADMIN) {
-            sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав');
-            return;
+        try {
+            const session = await getSessionFromReq(req);
+            if (!session || session.level < USER_LEVEL_ADMIN) {
+                sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав');
+                return;
+            }
+            const days = Math.min(90, Math.max(1, Number(new URL(req.url, 'http://localhost').searchParams.get('days')) || 30));
+            const rows = await db.getPunishmentsTrend(days);
+            sendJson(res, 200, { rows });
+        } catch (e) {
+            console.error('[Analytics trend] Error:', e?.message || e);
+            sendError(res, 500, 'INTERNAL_ERROR', 'Ошибка базы данных');
         }
-        const days = Math.min(90, Math.max(1, Number(new URL(req.url, 'http://localhost').searchParams.get('days')) || 30));
-        const rows = await db.getPunishmentsTrend(days);
-        sendJson(res, 200, { rows });
         return;
     }
     if (req.url.startsWith('/api/staff-analytics/comparison') && req.method === 'GET') {
-        const session = await getSessionFromReq(req);
-        if (!session || session.level < USER_LEVEL_ADMIN) {
-            sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав');
-            return;
+        try {
+            const session = await getSessionFromReq(req);
+            if (!session || session.level < USER_LEVEL_ADMIN) {
+                sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав');
+                return;
+            }
+            const punishments = await db.getPunishmentsMonthComparison();
+            const tickets = await db.getTicketsMonthComparison();
+            sendJson(res, 200, { punishments, tickets });
+        } catch (e) {
+            console.error('[Analytics comparison] Error:', e?.message || e);
+            sendError(res, 500, 'INTERNAL_ERROR', 'Ошибка базы данных');
         }
-        const punishments = await db.getPunishmentsMonthComparison();
-        const tickets = await db.getTicketsMonthComparison();
-        sendJson(res, 200, { punishments, tickets });
         return;
     }
     if (req.url.startsWith('/api/staff-analytics/roles') && req.method === 'GET') {
-        const session = await getSessionFromReq(req);
-        if (!session || session.level < USER_LEVEL_ADMIN) {
-            sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав');
-            return;
+        try {
+            const session = await getSessionFromReq(req);
+            if (!session || session.level < USER_LEVEL_ADMIN) {
+                sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав');
+                return;
+            }
+            const staffList = Array.isArray(staffPunishmentsCache.staffList) ? staffPunishmentsCache.staffList : [];
+            const counts = {};
+            for (const s of staffList) {
+                const g = s.group_display_name || s.group_name || 'Неизвестно';
+                counts[g] = (counts[g] || 0) + 1;
+            }
+            sendJson(res, 200, { counts });
+        } catch (e) {
+            console.error('[Analytics roles] Error:', e?.message || e);
+            sendError(res, 500, 'INTERNAL_ERROR', 'Ошибка базы данных');
         }
-        const staffList = Array.isArray(staffPunishmentsCache.staffList) ? staffPunishmentsCache.staffList : [];
-        const counts = {};
-        for (const s of staffList) {
-            const g = s.group_display_name || s.group_name || 'Неизвестно';
-            counts[g] = (counts[g] || 0) + 1;
-        }
-        sendJson(res, 200, { counts });
         return;
     }
 
