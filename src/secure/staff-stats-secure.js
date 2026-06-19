@@ -214,7 +214,8 @@
         const r = normalizeRole(role);
         if (r === 'STM') return 1000;
         if (r === 'STA') return 3000;
-        if (r === 'GA') return 6000;
+        if (r === 'GA') return 9000;
+        if (r === 'CURATOR') return 4000;
         return 0;
     }
 
@@ -235,11 +236,12 @@
     // Снятые и "напиши тикет в дс" уже исключены из bans/mutes в secure-расчёте.
     function roleMonthlyNorms(role) {
         const r = normalizeRole(role);
-        if (r === 'ML') return { punish: 100, tickets: 0 };
-        if (r === 'M') return { punish: 150, tickets: 0 };
-        if (r === 'STM') return { punish: 80, tickets: 150 };
-        if (r === 'STA') return { punish: 50, tickets: 150 };
+        if (r === 'ML') return { punish: 80, tickets: 0 };
+        if (r === 'M') return { punish: 100, tickets: 0 };
+        if (r === 'STM') return { punish: 60, tickets: 150 };
+        if (r === 'STA') return { punish: 40, tickets: 150 };
         if (r === 'GA') return { punish: 0, tickets: 0 };
+        if (r === 'CURATOR') return { punish: 0, tickets: 0 };
         return { punish: 0, tickets: 0 };
     }
 

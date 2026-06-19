@@ -998,7 +998,7 @@
                     const avatar = (s.avatar_full || defaultAvatar).replace(/^http:\/\//i, 'https://');
                     const sid = String(s.steamid || '').trim();
                     const canEditRole = currentUserLevel >= 5 && sid;
-                    const roleMap = { AUTO: 'Авто', ML: 'МЛ', M: 'М', STM: 'СТМ', STA: 'СТА', GA: 'ГА' };
+                    const roleMap = { AUTO: 'Авто', ML: 'МЛ', M: 'М', STM: 'СТМ', STA: 'СТА', GA: 'Куратор', CURATOR: 'ГА' };
                     const currentRole = (staffRolesBySid[sid] || 'AUTO').toUpperCase();
                     const roleSelectHtml = canEditRole
                         ? `<div class="mt-1 flex items-center gap-2">

@@ -1367,7 +1367,8 @@ function renderPanel() {
             };
             const roleLabelRu = (code) => {
                 const c = String(code || '').trim().toUpperCase();
-                if (c === 'GA') return 'ГА';
+                if (c === 'GA') return 'Куратор';
+                if (c === 'CURATOR') return 'ГА';
                 if (c === 'STA') return 'СТА';
                 if (c === 'STM') return 'СТМ';
                 if (c === 'M') return 'М';
