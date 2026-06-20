@@ -24,6 +24,7 @@ const navSections = [
       { path: '/leaderboard', label: 'Топ-1000', icon: BarChart3, minLevel: 1 },
       { path: '/bans-mutes', label: 'Баны и муты', icon: Ban, minLevel: 1 },
       { path: '/staff-stats', label: 'Статистика', icon: BarChart3, minLevel: 1 },
+      { path: '/vdf-history', label: 'Обходники', icon: AlertTriangle, minLevel: 1 },
     ],
   },
   {
@@ -78,6 +79,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       DOSTUP: 'Доступ',
       ADMIN: 'Администратор',
       ADMIN_PLUS: 'Администратор+',
+      CHECKER: 'Чекер',
     };
     return labels[group] || 'Пользователь';
   };

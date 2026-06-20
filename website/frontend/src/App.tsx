@@ -12,6 +12,7 @@ import AuthCallback from './pages/AuthCallback';
 import BansAndMutesPage from './pages/BansAndMutesPage';
 import StatsPage from './pages/StatsPage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import EvadersPage from './pages/EvadersPage';
 
 function ProtectedRoute({ children, minLevel = 1 }: { children: React.ReactNode; minLevel?: number }) {
   const { user, loading, hasLevel } = useAuth();
@@ -131,6 +132,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <StatsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/vdf-history"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <EvadersPage />
             </Layout>
           </ProtectedRoute>
         }

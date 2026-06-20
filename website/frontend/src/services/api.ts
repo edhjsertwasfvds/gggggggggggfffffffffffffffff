@@ -143,6 +143,10 @@ class ApiService {
     });
   }
 
+  async getEvaders() {
+    return this.request('/api/evaders');
+  }
+
   async getAdminUsers() {
     return this.request('/api/admin/users');
   }

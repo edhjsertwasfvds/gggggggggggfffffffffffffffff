@@ -196,9 +196,22 @@ func (h *AuthHandler) fetchDiscordUser(token string) (*models.DiscordUser, error
 	return &user, nil
 }
 
+func (h *AuthHandler) guildIDs() []string {
+	ids := []string{}
+	if h.cfg.DiscordGuildID != "" {
+		ids = append(ids, h.cfg.DiscordGuildID)
+	}
+	for _, g := range h.cfg.DiscordExtraGuildIDs {
+		if g != "" {
+			ids = append(ids, g)
+		}
+	}
+	return ids
+}
+
 func (h *AuthHandler) fetchGuildRoles(userID string) ([]string, error) {
-	guildID := h.cfg.DiscordGuildID
-	if guildID == "" {
+	guildIDs := h.guildIDs()
+	if len(guildIDs) == 0 {
 		return nil, fmt.Errorf("guild ID not configured")
 	}
 
@@ -207,38 +220,44 @@ func (h *AuthHandler) fetchGuildRoles(userID string) ([]string, error) {
 		botToken = h.cfg.DiscordClientSecret
 	}
 
-	url := fmt.Sprintf("https://discord.com/api/guilds/%s/members/%s", guildID, userID)
-	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Set("Authorization", "Bot "+botToken)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, string(body))
+	var allRoles []string
+	for _, guildID := range guildIDs {
+		roles, err := h.fetchGuildRolesForGuild(userID, guildID, botToken, "Bot ")
+		if err == nil {
+			allRoles = append(allRoles, roles...)
+		}
 	}
 
-	var member models.DiscordGuildMember
-	if err := json.NewDecoder(resp.Body).Decode(&member); err != nil {
-		return nil, err
+	if len(allRoles) == 0 {
+		return nil, fmt.Errorf("no guild roles found")
 	}
-	return member.Roles, nil
+	return allRoles, nil
 }
 
 func (h *AuthHandler) fetchGuildRolesWithToken(accessToken string, userID string) ([]string, error) {
-	guildID := h.cfg.DiscordGuildID
-	if guildID == "" {
+	guildIDs := h.guildIDs()
+	if len(guildIDs) == 0 {
 		return nil, fmt.Errorf("guild ID not configured")
 	}
 
+	var allRoles []string
+	for _, guildID := range guildIDs {
+		roles, err := h.fetchGuildRolesForGuild(userID, guildID, accessToken, "Bearer ")
+		if err == nil {
+			allRoles = append(allRoles, roles...)
+		}
+	}
+
+	if len(allRoles) == 0 {
+		return nil, fmt.Errorf("no guild roles found")
+	}
+	return allRoles, nil
+}
+
+func (h *AuthHandler) fetchGuildRolesForGuild(userID, guildID, token, prefix string) ([]string, error) {
 	url := fmt.Sprintf("https://discord.com/api/guilds/%s/members/%s", guildID, userID)
 	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Authorization", prefix+token)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
@@ -285,6 +304,11 @@ func (h *AuthHandler) resolvePermissions(guildRoles []string) (string, string, i
 	if bestLevel <= 0 && bestGroup == "" {
 		if roleSet == nil || len(roleSet) == 0 {
 			return "", "STAFF", -1, []string{}
+		}
+		for _, checkerRoleID := range h.cfg.CheckerRoleIDs {
+			if roleSet[checkerRoleID] {
+				return "Checker", "CHECKER", 1, []string{"vdf.view"}
+			}
 		}
 		for groupName, rp := range h.cfg.RoleMap {
 			if rp.RoleID == "" && groupName == "UNDEFINED" {

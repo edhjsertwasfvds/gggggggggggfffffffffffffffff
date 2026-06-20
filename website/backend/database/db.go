@@ -74,6 +74,11 @@ func (db *DB) migrate() error {
 			user_agent TEXT,
 			logged_in_at TIMESTAMPTZ DEFAULT NOW()
 		)`,
+		`CREATE TABLE IF NOT EXISTS kv_store (
+			key TEXT PRIMARY KEY,
+			value JSONB NOT NULL,
+			updated_at TIMESTAMPTZ DEFAULT NOW()
+		)`,
 	}
 
 	for _, q := range queries {
@@ -189,6 +194,19 @@ func (db *DB) LogLogin(discordID, ip, userAgent string) {
 	_, _ = db.pool.Exec(ctx, `
 		INSERT INTO login_history (discord_id, ip_address, user_agent) VALUES ($1, $2, $3)
 	`, discordID, ip, userAgent)
+}
+
+func (db *DB) GetKVStore(key string) ([]byte, error) {
+	if db.pool == nil {
+		return nil, fmt.Errorf("no database available")
+	}
+	ctx := context.Background()
+	var value []byte
+	err := db.pool.QueryRow(ctx, `SELECT value FROM kv_store WHERE key = $1`, key).Scan(&value)
+	if err != nil {
+		return nil, err
+	}
+	return value, nil
 }
 
 // JSON fallback methods
