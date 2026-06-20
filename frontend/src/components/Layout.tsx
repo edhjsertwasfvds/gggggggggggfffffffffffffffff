@@ -24,7 +24,6 @@ const navSections = [
       { path: '/leaderboard', label: 'Топ-1000', icon: BarChart3, minLevel: 1 },
       { path: '/bans-mutes', label: 'Баны и муты', icon: Ban, minLevel: 1 },
       { path: '/staff-stats', label: 'Статистика', icon: BarChart3, minLevel: 1 },
-      { path: '/evaders', label: 'Обходники', icon: AlertTriangle, minLevel: 1 },
       { path: '/vdf-history', label: 'История VDF', icon: FileText, minLevel: 1 },
     ],
   },
@@ -38,6 +37,7 @@ const navSections = [
     title: 'АДМИН-ПАНЕЛЬ',
     items: [
       { path: '/admin', label: 'Пользователи', icon: Crown, minLevel: 5 },
+      { path: '/evaders', label: 'Обходники', icon: AlertTriangle, minLevel: 1 },
     ],
   },
 ];
