@@ -1,0 +1,147 @@
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Trophy, Medal, Users } from 'lucide-react';
+import { api } from '../services/api';
+import type { FearAPIServer } from '../types';
+
+interface LeaderboardPlayer {
+  steam_id: string;
+  name: string;
+  kills: number;
+  deaths: number;
+  kd: number;
+  avatar?: string;
+}
+
+export default function LeaderboardPage() {
+  const [players, setPlayers] = useState<LeaderboardPlayer[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLeaderboard = async () => {
+      try {
+        const res = await api.getLeaderboard();
+        const data = res?.players || res || [];
+        setPlayers(Array.isArray(data) ? data.slice(0, 1000) : []);
+      } catch {
+        // Fallback: gather from servers
+        try {
+          const serversRes = await api.getServers();
+          const servers: FearAPIServer[] = Array.isArray(serversRes) ? serversRes : (serversRes.data || serversRes.servers || []);
+          const playerMap = new Map<string, LeaderboardPlayer>();
+          for (const s of servers) {
+            for (const p of s.live_data?.players || []) {
+              const existing = playerMap.get(p.steam_id);
+              if (existing) {
+                existing.kills += p.kills || 0;
+                existing.deaths += p.deaths || 0;
+                existing.kd = existing.deaths > 0 ? existing.kills / existing.deaths : existing.kills;
+              } else {
+                playerMap.set(p.steam_id, {
+                  steam_id: p.steam_id,
+                  name: p.name || p.nickname || 'Unknown',
+                  kills: p.kills || 0,
+                  deaths: p.deaths || 0,
+                  kd: p.kd || (p.deaths > 0 ? p.kills / p.deaths : p.kills),
+                  avatar: p.avatar,
+                });
+              }
+            }
+          }
+          const sorted = Array.from(playerMap.values()).sort((a, b) => b.kills - a.kills).slice(0, 1000);
+          setPlayers(sorted);
+        } catch {
+          setPlayers([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLeaderboard();
+  }, []);
+
+  const getMedal = (i: number) => {
+    if (i === 0) return '🥇';
+    if (i === 1) return '🥈';
+    if (i === 2) return '🥉';
+    return null;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-[1100px] mx-auto">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-6"
+      >
+        <h1 className="text-2xl font-bold text-white">Топ-1000</h1>
+        <p className="text-sm text-gray-500 mt-1">Лучшие игроки по убийствам</p>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="bg-[#12151e] rounded-xl border border-white/5 overflow-hidden"
+      >
+        <div className="grid grid-cols-[40px_1fr_80px_80px_80px] gap-4 px-5 py-3 border-b border-white/5 text-xs text-gray-500 uppercase tracking-wider font-semibold">
+          <span>#</span>
+          <span>Игрок</span>
+          <span>Убийства</span>
+          <span>Смерти</span>
+          <span>K/D</span>
+        </div>
+
+        <div className="divide-y divide-white/[0.03] max-h-[calc(100vh-280px)] overflow-y-auto">
+          {players.map((p, i) => {
+            const medal = getMedal(i);
+            return (
+              <motion.div
+                key={p.steam_id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: Math.min(i * 0.01, 0.5) }}
+                className="grid grid-cols-[40px_1fr_80px_80px_80px] gap-4 px-5 py-3 hover:bg-[#161a25] transition-colors items-center"
+              >
+                <span className="text-sm text-gray-600">
+                  {medal || i + 1}
+                </span>
+                <div className="flex items-center gap-3 min-w-0">
+                  {p.avatar ? (
+                    <img src={p.avatar} alt={p.name} className="w-8 h-8 rounded-lg object-cover ring-1 ring-white/10" />
+                  ) : (
+                    <div className="w-8 h-8 bg-[#1e2333] rounded-lg flex items-center justify-center">
+                      <span className="text-xs font-bold text-gray-500">{p.name?.charAt(0)?.toUpperCase() || '?'}</span>
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{p.name}</p>
+                    <p className="text-[11px] text-gray-500 font-mono truncate">{p.steam_id}</p>
+                  </div>
+                </div>
+                <span className="text-sm text-white font-bold">{p.kills.toLocaleString()}</span>
+                <span className="text-sm text-gray-400">{p.deaths.toLocaleString()}</span>
+                <span className="text-sm text-gray-300">{p.kd.toFixed(2)}</span>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {players.length === 0 && (
+          <div className="text-center py-12">
+            <Trophy className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+            <p className="text-gray-500">Нет данных</p>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+}

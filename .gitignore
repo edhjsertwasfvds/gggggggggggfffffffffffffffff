@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
