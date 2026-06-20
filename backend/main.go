@@ -26,6 +26,7 @@ func main() {
 	fearAPI := handlers.NewFearAPIHandler(cfg)
 	admin := handlers.NewAdminHandler(cfg, db)
 	whitelist := handlers.NewWhitelistHandler(cfg)
+	evaders := handlers.NewEvadersHandler(cfg, db)
 
 	mux := http.NewServeMux()
 
@@ -64,6 +65,7 @@ func main() {
 	mux.Handle("/api/steam/level/", handlers.AuthMiddleware(cfg, http.HandlerFunc(fearAPI.GetSteamLevel)))
 
 	mux.Handle("/api/check", handlers.AuthMiddleware(cfg, http.HandlerFunc(checker.Check)))
+	mux.Handle("/api/evaders", handlers.AuthMiddleware(cfg, http.HandlerFunc(evaders.GetEvaders)))
 
 	mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

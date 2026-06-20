@@ -3,20 +3,23 @@ package config
 import (
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
-	DiscordClientID     string
-	DiscordClientSecret string
-	DiscordBotToken     string
-	DiscordRedirectURL  string
-	DiscordGuildID      string
-	JWTSecret           string
-	DatabaseURL         string
-	FrontendURL         string
-	Port                string
+	DiscordClientID      string
+	DiscordClientSecret  string
+	DiscordBotToken      string
+	DiscordRedirectURL   string
+	DiscordGuildID       string
+	DiscordExtraGuildIDs []string
+	CheckerRoleIDs       []string
+	JWTSecret            string
+	DatabaseURL          string
+	FrontendURL          string
+	Port                 string
 
 	RoleMap map[string]RolePermission
 }
@@ -32,15 +35,17 @@ func Load() *Config {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		DiscordClientID:     getEnv("DISCORD_CLIENT_ID", "1502816475847594116"),
-		DiscordClientSecret: getEnv("DISCORD_CLIENT_SECRET", "chsgcJ0x0eBkGcLuWkQKuw6qpLcZoU_K"),
-		DiscordBotToken:     getEnv("DISCORD_BOT_TOKEN", ""),
-		DiscordRedirectURL:  getEnv("DISCORD_REDIRECT_URL", "http://localhost:8080/api/auth/callback"),
-		DiscordGuildID:      getEnv("DISCORD_GUILD_ID", "1501738174811082965"),
-		JWTSecret:           getEnv("JWT_SECRET", "fearstaff-jwt-secret-2024"),
-		DatabaseURL:         getEnv("DATABASE_URL", ""),
-		FrontendURL:         getEnv("FRONTEND_URL", "http://localhost:5173"),
-		Port:                getEnv("PORT", "8080"),
+		DiscordClientID:      getEnv("DISCORD_CLIENT_ID", "1502816475847594116"),
+		DiscordClientSecret:  getEnv("DISCORD_CLIENT_SECRET", "chsgcJ0x0eBkGcLuWkQKuw6qpLcZoU_K"),
+		DiscordBotToken:      getEnv("DISCORD_BOT_TOKEN", ""),
+		DiscordRedirectURL:   getEnv("DISCORD_REDIRECT_URL", "http://localhost:8080/api/auth/callback"),
+		DiscordGuildID:       getEnv("DISCORD_GUILD_ID", "1501738174811082965"),
+		DiscordExtraGuildIDs: getEnvList("DISCORD_EXTRA_GUILD_IDS", []string{"1358108404182159451"}),
+		CheckerRoleIDs:       getEnvList("DISCORD_CHECKER_ROLE_IDS", []string{"1363567559122751640", "1438457934253396088", "1416073628088401961", "1358118683142127766", "1358141957481955556", "1358142006131687565", "1416068024972087366", "1474420026022039674", "1358108404195000576", "1473839881489879141", "1439238025136705547"}),
+		JWTSecret:            getEnv("JWT_SECRET", "fearstaff-jwt-secret-2024"),
+		DatabaseURL:          getEnv("DATABASE_URL", ""),
+		FrontendURL:          getEnv("FRONTEND_URL", "http://localhost:5173"),
+		Port:                 getEnv("PORT", "8080"),
 	}
 
 	cfg.RoleMap = map[string]RolePermission{
@@ -162,6 +167,23 @@ func getEnvInt(key string, fallback int) int {
 	if v := os.Getenv(key); v != "" {
 		if i, err := strconv.Atoi(v); err == nil {
 			return i
+		}
+	}
+	return fallback
+}
+
+func getEnvList(key string, fallback []string) []string {
+	if v := os.Getenv(key); v != "" {
+		parts := strings.Split(v, ",")
+		out := make([]string, 0, len(parts))
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				out = append(out, p)
+			}
+		}
+		if len(out) > 0 {
+			return out
 		}
 	}
 	return fallback
