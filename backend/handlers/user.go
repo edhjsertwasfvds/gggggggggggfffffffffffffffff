@@ -160,6 +160,7 @@ func (h *UserHandler) GetRoles(w http.ResponseWriter, r *http.Request) {
 
 func (h *UserHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request) {
 	total := 0
+	staffByRole := make(map[string]int)
 
 	if h.db != nil {
 		users, err := h.db.GetAllUsers()
@@ -167,6 +168,12 @@ func (h *UserHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request) 
 			for _, u := range users {
 				if u.Level >= 1 {
 					total++
+					rp, ok := h.cfg.RoleMap[u.StaffGroup]
+					if ok {
+						staffByRole[rp.RoleName]++
+					} else if u.StaffGroup != "" {
+						staffByRole[u.StaffGroup]++
+					}
 				}
 			}
 		}
@@ -176,6 +183,14 @@ func (h *UserHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request) 
 		staff, err := h.db.GetStaffFromFile()
 		if err == nil {
 			total = len(staff)
+			for _, s := range staff {
+				rp, ok := h.cfg.RoleMap[s.GroupName]
+				if ok {
+					staffByRole[rp.RoleName]++
+				} else if s.GroupName != "" {
+					staffByRole[s.GroupName]++
+				}
+			}
 		}
 	}
 
@@ -183,7 +198,7 @@ func (h *UserHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request) 
 		"success": true,
 		"data": map[string]interface{}{
 			"total_staff":   total,
-			"staff_by_role": map[string]int{},
+			"staff_by_role": staffByRole,
 		},
 	})
 }

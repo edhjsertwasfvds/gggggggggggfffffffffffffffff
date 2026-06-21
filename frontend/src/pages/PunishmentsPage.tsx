@@ -33,15 +33,15 @@ export default function PunishmentsPage() {
     await handleSearch(user.steam_id);
   };
 
-  const bansActive = punishments.filter(p => p.type === 0 && p.status === 1).length;
-  const bansRemoved = punishments.filter(p => p.type === 0 && p.status === 2).length;
-  const bansExpired = punishments.filter(p => p.type === 0 && p.status === 4).length;
-  const bansTotal = punishments.filter(p => p.type === 0).length;
+  const bansActive = punishments.filter(p => p.type === 1 && p.status === 1).length;
+  const bansRemoved = punishments.filter(p => p.type === 1 && p.status === 2).length;
+  const bansExpired = punishments.filter(p => p.type === 1 && p.status === 4).length;
+  const bansTotal = punishments.filter(p => p.type === 1).length;
 
-  const mutesActive = punishments.filter(p => p.type === 1 && p.status === 1).length;
-  const mutesRemoved = punishments.filter(p => p.type === 1 && p.status === 2).length;
-  const mutesExpired = punishments.filter(p => p.type === 1 && p.status === 4).length;
-  const mutesTotal = punishments.filter(p => p.type === 1).length;
+  const mutesActive = punishments.filter(p => p.type === 2 && p.status === 1).length;
+  const mutesRemoved = punishments.filter(p => p.type === 2 && p.status === 2).length;
+  const mutesExpired = punishments.filter(p => p.type === 2 && p.status === 4).length;
+  const mutesTotal = punishments.filter(p => p.type === 2).length;
 
   const effective = (bansTotal - bansRemoved) + (mutesTotal - mutesRemoved);
 
@@ -205,8 +205,8 @@ export default function PunishmentsPage() {
                   </div>
                   <span className="text-xs text-gray-400 font-mono truncate">{p.steamid}</span>
                   <span className="text-sm text-gray-300 truncate">{p.reason || '—'}</span>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${p.type === 0 ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                    {p.type === 0 ? 'BAN' : 'MUTE'}
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${p.type === 1 ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'}`}>
+                    {p.type === 1 ? 'BAN' : 'MUTE'}
                   </span>
                   <span className={`text-[11px] font-medium px-2 py-0.5 rounded ${statusInfo.color}`}>{statusInfo.label}</span>
                   <span className="text-xs text-gray-400"><Clock className="w-3 h-3 inline mr-1" />{durStr(p.duration)}</span>

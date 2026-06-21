@@ -189,15 +189,15 @@ export default function PlayerCardModal({ player, onClose }: PlayerCardModalProp
             )}
 
             {/* Steam Ban Info */}
-            {steamBan && (steamBan.vacBanned || steamBan.numberofGameBans > 0) && (
+            {steamBan && (steamBan.VACBanned || steamBan.NumberOfGameBans > 0) && (
               <div className="px-6 mb-4">
                 <h3 className="text-sm font-semibold text-white mb-2">Steam Бан</h3>
                 <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3">
-                  {steamBan.vacBanned && (
-                    <p className="text-sm text-red-400">VAC ({steamBan.numberofVACBans}) — {steamBan.daysSinceLastVACBan} дн.</p>
+                  {steamBan.VACBanned && (
+                    <p className="text-sm text-red-400">VAC ({steamBan.NumberOfVACBans}) — {steamBan.DaysSinceLastBan} дн.</p>
                   )}
-                  {steamBan.numberofGameBans > 0 && (
-                    <p className="text-sm text-red-400">Game Ban ({steamBan.numberofGameBans})</p>
+                  {steamBan.NumberOfGameBans > 0 && (
+                    <p className="text-sm text-red-400">Game Ban ({steamBan.NumberOfGameBans})</p>
                   )}
                 </div>
               </div>

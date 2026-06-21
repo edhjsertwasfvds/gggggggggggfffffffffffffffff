@@ -14,6 +14,10 @@ import StatsPage from './pages/StatsPage';
 import LeaderboardPage from './pages/LeaderboardPage';
 import EvadersPage from './pages/EvadersPage';
 import VDFHistoryPage from './pages/VDFHistoryPage';
+import DashboardPage from './pages/DashboardPage';
+import StaffPage from './pages/StaffPage';
+import ProfilePage from './pages/ProfilePage';
+import FAQPage from './pages/FAQPage';
 
 function ProtectedRoute({ children, minLevel = 1 }: { children: React.ReactNode; minLevel?: number }) {
   const { user, loading, hasLevel } = useAuth();
@@ -173,6 +177,46 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <SettingsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <DashboardPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/staff"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <StaffPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/profile"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ProfilePage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/faq"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <FAQPage />
             </Layout>
           </ProtectedRoute>
         }

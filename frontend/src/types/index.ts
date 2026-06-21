@@ -157,13 +157,13 @@ export interface SteamSummary {
 }
 
 export interface SteamBan {
-  steamId: string;
-  communityBanned: boolean;
-  vacBanned: boolean;
-  numberofVACBans: number;
-  daysSinceLastVACBan: number;
-  numberofGameBans: number;
-  economyBan: string;
+  SteamId: string;
+  CommunityBanned: boolean;
+  VACBanned: boolean;
+  NumberOfVACBans: number;
+  DaysSinceLastBan: number;
+  NumberOfGameBans: number;
+  EconomyBan: string;
 }
 
 export interface StaffStats {

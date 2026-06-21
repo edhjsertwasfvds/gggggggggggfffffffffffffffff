@@ -20,6 +20,18 @@ type FearAPIHandler struct {
 	client *http.Client
 	nameMu sync.RWMutex
 	nameMap map[string]ProfileInfo
+
+	statsCache      []byte
+	statsCacheMu    sync.RWMutex
+	statsCacheAt    time.Time
+
+	adminPunishCache   map[string]*adminPunishCacheEntry
+	adminPunishCacheMu sync.RWMutex
+}
+
+type adminPunishCacheEntry struct {
+	data      []interface{}
+	createdAt time.Time
 }
 
 type ProfileInfo struct {
@@ -29,10 +41,11 @@ type ProfileInfo struct {
 
 func NewFearAPIHandler(cfg *config.Config, db *database.DB) *FearAPIHandler {
 	return &FearAPIHandler{
-		cfg:    cfg,
-		db:     db,
-		client: &http.Client{Timeout: 15 * time.Second},
-		nameMap: make(map[string]ProfileInfo),
+		cfg:              cfg,
+		db:               db,
+		client:           &http.Client{Timeout: 15 * time.Second},
+		nameMap:          make(map[string]ProfileInfo),
+		adminPunishCache: make(map[string]*adminPunishCacheEntry),
 	}
 }
 
@@ -252,6 +265,20 @@ func (h *FearAPIHandler) GetPunishmentsByAdmin(w http.ResponseWriter, r *http.Re
 		Total int `json:"total"`
 	}
 
+	h.adminPunishCacheMu.RLock()
+	cached, ok := h.adminPunishCache[adminSteamID]
+	h.adminPunishCacheMu.RUnlock()
+
+	if ok && time.Since(cached.createdAt) < 60*time.Second {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success":     true,
+			"punishments": cached.data,
+			"total":       len(cached.data),
+		})
+		return
+	}
+
 	allPunishments := make([]interface{}, 0)
 
 	for ptype := 1; ptype <= 2; ptype++ {
@@ -316,6 +343,13 @@ func (h *FearAPIHandler) GetPunishmentsByAdmin(w http.ResponseWriter, r *http.Re
 			}
 		}
 	}
+
+	h.adminPunishCacheMu.Lock()
+	h.adminPunishCache[adminSteamID] = &adminPunishCacheEntry{
+		data:      allPunishments,
+		createdAt: time.Now(),
+	}
+	h.adminPunishCacheMu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -552,6 +586,17 @@ func (h *FearAPIHandler) GetStaffStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.statsCacheMu.RLock()
+	cacheValid := h.statsCache != nil && time.Since(h.statsCacheAt) < 60*time.Second
+	cacheData := h.statsCache
+	h.statsCacheMu.RUnlock()
+
+	if cacheValid {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(cacheData)
+		return
+	}
+
 	type punishItem struct {
 		ID          int64  `json:"id"`
 		AdminSteam  string `json:"admin_steamid"`
@@ -665,11 +710,18 @@ func (h *FearAPIHandler) GetStaffStats(w http.ResponseWriter, r *http.Request) {
 		result = append(result, v)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	responseBytes, _ := json.Marshal(map[string]interface{}{
 		"success": true,
 		"stats":   result,
 	})
+
+	h.statsCacheMu.Lock()
+	h.statsCache = responseBytes
+	h.statsCacheAt = time.Now()
+	h.statsCacheMu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(responseBytes)
 }
 
 func (h *FearAPIHandler) GetAdmins(w http.ResponseWriter, r *http.Request) {

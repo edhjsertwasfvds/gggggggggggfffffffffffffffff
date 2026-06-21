@@ -1,4 +1,4 @@
-const API_BASE = 'https://gggggggggggfffffffffffffffff-production.up.railway.app';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://gggggggggggfffffffffffffffff-production.up.railway.app';
 
 class ApiService {
   private token: string | null = null;

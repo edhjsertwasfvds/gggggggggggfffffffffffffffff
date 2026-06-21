@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Search, Shield, Settings, LogOut, AlertTriangle,
-  ChevronRight, Menu, X, Crown, Ban, BarChart3, ShieldCheck, FileText
+  ChevronRight, Menu, X, Crown, Ban, BarChart3, ShieldCheck, FileText, Home
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
@@ -13,7 +13,9 @@ const navSections = [
   {
     title: 'ОСНОВНОЕ',
     items: [
+      { path: '/dashboard', label: 'Главная', icon: Home, minLevel: 1 },
       { path: '/players', label: 'Игроки', icon: Users, minLevel: 1 },
+      { path: '/staff', label: 'Стафф', icon: Users, minLevel: 1 },
       { path: '/punishments', label: 'Наказания', icon: AlertTriangle, minLevel: 1 },
       { path: '/checker', label: 'Проверка', icon: Search, minLevel: 1 },
     ],

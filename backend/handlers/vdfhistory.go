@@ -28,17 +28,19 @@ type VDFCheckHistory struct {
 }
 
 type VDFHistoryItem struct {
-	SteamID     string `json:"steamid"`
-	Nickname    string `json:"nickname"`
-	Avatar      string `json:"avatar,omitempty"`
-	FearBanned  bool   `json:"fear_banned"`
-	FearReason  string `json:"fear_reason"`
-	FearUnban   string `json:"fear_unban"`
-	VacBanned   bool   `json:"vac_banned"`
-	GameBans    int    `json:"game_bans"`
-	CommunityBan bool  `json:"community_ban"`
-	YoomaBanned bool   `json:"yooma_banned"`
-	YoomaReason string `json:"yooma_reason"`
+	SteamID      string `json:"steamid"`
+	Nickname     string `json:"nickname"`
+	Avatar       string `json:"avatar,omitempty"`
+	FearBanned   bool   `json:"fear_banned"`
+	FearReason   string `json:"fear_reason"`
+	FearUnban    string `json:"fear_unban_time"`
+	VacBanned    bool   `json:"vac_banned"`
+	VacDaysAgo   int    `json:"vac_days_ago"`
+	GameBans     int    `json:"game_bans"`
+	CommunityBan bool   `json:"community_ban"`
+	YoomaBanned  bool   `json:"yooma_banned"`
+	YoomaReason  string `json:"yooma_reason"`
+	AdminGroup   string `json:"admin_group"`
 }
 
 type vdfHistoryStore struct {
