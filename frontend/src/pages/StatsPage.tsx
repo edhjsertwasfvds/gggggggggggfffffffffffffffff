@@ -42,8 +42,16 @@ export default function StatsPage() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const adminsRes = await api.getAdmins();
-      const adminList: AdminEntry[] = adminsRes?.admins || [];
+      const staffRes = await api.getStaff();
+      const staffList = (staffRes?.data || staffRes?.staff || (Array.isArray(staffRes) ? staffRes : [])) as any[];
+      const adminList: AdminEntry[] = staffList.map((s: any) => ({
+        steamid: s.steam_id || s.steamid || s.id,
+        steam_id: s.steam_id || s.steamid,
+        name: s.name || s.display_name,
+        nickname: s.discord_name,
+        group_name: s.group_name,
+        group_display_name: s.role || s.group_display_name,
+      }));
       setAdmins(adminList);
 
       const steamIds = adminList.map(a => a.steamid || a.steam_id).filter(Boolean) as string[];
