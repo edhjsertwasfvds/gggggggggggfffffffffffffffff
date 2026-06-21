@@ -72,9 +72,6 @@ func (r vdfHistoryResult) isBanned() bool {
 	if r.YoomaData == nil {
 		return false
 	}
-	if found, ok := r.YoomaData["found"].(bool); ok && found {
-		return true
-	}
 	if punishments, ok := r.YoomaData["punishments"].([]interface{}); ok {
 		for _, p := range punishments {
 			pm, ok := p.(map[string]interface{})
