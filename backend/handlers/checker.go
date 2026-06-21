@@ -43,6 +43,9 @@ type AccountResult struct {
 	FearURL        string  `json:"fear_url"`
 	SteamURL       string  `json:"steam_url"`
 	YoomaURL       string  `json:"yooma_url"`
+	Kills          int     `json:"kills,omitempty"`
+	Deaths         int     `json:"deaths,omitempty"`
+	KD             float64 `json:"kd,omitempty"`
 }
 
 type checkRequest struct {
@@ -335,6 +338,10 @@ func (h *CheckHandler) checkSingleAccount(steamID string) AccountResult {
 			UnbanTimestamp interface{} `json:"unbanTimestamp"`
 			Reason         interface{} `json:"reason"`
 		} `json:"banInfo"`
+		Stats struct {
+			Kills  int `json:"kills"`
+			Deaths int `json:"deaths"`
+		} `json:"stats"`
 	}
 
 	type steamSummaryResp struct {
@@ -397,6 +404,14 @@ func (h *CheckHandler) checkSingleAccount(steamID string) AccountResult {
 				}
 				profile.BanInfo.UnbanTimestamp = bi["unbanTimestamp"]
 				profile.BanInfo.Reason = bi["reason"]
+			}
+			if stats, ok := data["stats"].(map[string]interface{}); ok {
+				if k, ok := stats["kills"].(float64); ok {
+					profile.Stats.Kills = int(k)
+				}
+				if d, ok := stats["deaths"].(float64); ok {
+					profile.Stats.Deaths = int(d)
+				}
 			}
 		}
 	}()
@@ -470,6 +485,14 @@ func (h *CheckHandler) checkSingleAccount(steamID string) AccountResult {
 		if result.Name == "" && sp.Personaname != "" {
 			result.Name = sp.Personaname
 		}
+	}
+
+	result.Kills = profile.Stats.Kills
+	result.Deaths = profile.Stats.Deaths
+	if result.Deaths > 0 {
+		result.KD = float64(result.Kills) / float64(result.Deaths)
+	} else {
+		result.KD = float64(result.Kills)
 	}
 
 	if profile.BanInfo.IsBanned {

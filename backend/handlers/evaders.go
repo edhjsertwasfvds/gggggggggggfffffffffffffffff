@@ -146,6 +146,22 @@ func (h *EvadersHandler) GetEvaders(w http.ResponseWriter, r *http.Request) {
 	h.cache.timestamp = time.Now()
 	h.cache.mu.Unlock()
 
+	// Resolve avatars for evaders and banned details
+	if len(evaders) > 0 {
+		idsToResolve := make([]string, 0)
+		for _, e := range evaders {
+			if e.SteamID != "" {
+				idsToResolve = append(idsToResolve, e.SteamID)
+			}
+			for _, bd := range e.BannedDetails {
+				if bd.SteamID != "" {
+					idsToResolve = append(idsToResolve, bd.SteamID)
+				}
+			}
+		}
+		h.resolveEvaderNames(idsToResolve, evaders)
+	}
+
 	// Background: обновляем баны по найденным обходникам
 	go h.refreshBannedAccounts(evaders)
 
@@ -696,4 +712,60 @@ func (h *EvadersHandler) updateBanInHistory(steamID string, isBanned bool, reaso
 		return
 	}
 	_ = h.db.UpdateVDFHistoryBan(steamID, isBanned, reason, unbanTime)
+}
+
+func (h *EvadersHandler) resolveEvaderNames(ids []string, evaders []Evader) {
+	if len(ids) == 0 {
+		return
+	}
+	seen := make(map[string]bool)
+	unique := make([]string, 0)
+	for _, id := range ids {
+		if !seen[id] {
+			seen[id] = true
+			unique = append(unique, id)
+		}
+	}
+
+	type profileInfo struct {
+		Name   string `json:"name"`
+		Avatar string `json:"avatar"`
+	}
+	profileMap := make(map[string]profileInfo)
+
+	for _, sid := range unique {
+		profile := h.fetchFearProfile(sid)
+		if profile == nil {
+			continue
+		}
+		name := ""
+		if n, ok := profile["name"].(string); ok {
+			name = n
+		}
+		avatar := ""
+		if a, ok := profile["avatar_full"].(string); ok {
+			avatar = a
+		} else if a, ok := profile["avatar"].(string); ok {
+			avatar = a
+		}
+		profileMap[sid] = profileInfo{Name: name, Avatar: avatar}
+	}
+
+	for i := range evaders {
+		if p, ok := profileMap[evaders[i].SteamID]; ok {
+			if p.Avatar != "" {
+				evaders[i].Avatar = p.Avatar
+			}
+			if p.Name != "" && evaders[i].Name == "" {
+				evaders[i].Name = p.Name
+			}
+		}
+		for j := range evaders[i].BannedDetails {
+			if p, ok := profileMap[evaders[i].BannedDetails[j].SteamID]; ok {
+				if p.Name != "" && evaders[i].BannedDetails[j].Name == "" {
+					evaders[i].BannedDetails[j].Name = p.Name
+				}
+			}
+		}
+	}
 }

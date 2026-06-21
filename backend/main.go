@@ -29,7 +29,7 @@ func main() {
 	admin := handlers.NewAdminHandler(cfg, db)
 	whitelist := handlers.NewWhitelistHandler(cfg, db)
 	evaders := handlers.NewEvadersHandler(cfg, db)
-	vdfHistory := handlers.NewVDFHistoryHandler(cfg, db)
+	vdfHistory := handlers.NewVDFHistoryHandler(cfg, db, fearAPI)
 
 	mux := http.NewServeMux()
 

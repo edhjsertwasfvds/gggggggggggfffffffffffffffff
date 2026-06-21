@@ -23,6 +23,9 @@ interface AccountCheckResult {
   fear_url?: string;
   steam_url?: string;
   yooma_url?: string;
+  kills?: number;
+  deaths?: number;
+  kd?: number;
 }
 
 interface VDFResult {
@@ -269,6 +272,14 @@ export default function CheckerPage() {
                     <div className="min-w-[120px]">
                       <p className="text-[10px] text-gray-600 uppercase mb-0.5">Причина</p>
                       <p className="text-xs text-white truncate max-w-[160px]">{isBanned ? banReason : '—'}</p>
+                    </div>
+
+                    <div className="min-w-[80px] text-center">
+                      <p className="text-[10px] text-gray-600 uppercase mb-0.5">K/D</p>
+                      <p className="text-xs text-gray-300">{r.kd != null ? r.kd.toFixed(2) : '—'}</p>
+                      {r.kills != null && (
+                        <p className="text-[9px] text-gray-600">{(r.kills || 0).toLocaleString()} / {(r.deaths || 0).toLocaleString()}</p>
+                      )}
                     </div>
 
                     <div className="min-w-[100px]">

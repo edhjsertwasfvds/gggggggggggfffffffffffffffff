@@ -100,9 +100,13 @@ export default function EvadersPage() {
               >
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
                   <div className="flex items-center gap-4 flex-1">
-                    <div className="w-12 h-12 bg-[#1e2333] rounded-xl flex items-center justify-center">
-                      <AlertTriangle className="w-5 h-5 text-red-400" />
-                    </div>
+                    {evader.avatar ? (
+                      <img src={evader.avatar} alt="" className="w-12 h-12 rounded-xl object-cover ring-1 ring-white/10" />
+                    ) : (
+                      <div className="w-12 h-12 bg-[#1e2333] rounded-xl flex items-center justify-center">
+                        <AlertTriangle className="w-5 h-5 text-red-400" />
+                      </div>
+                    )}
                     <div>
                       <p className="text-sm font-medium text-white">{evader.name || 'Unknown'}</p>
                       <p className="text-xs text-gray-500 font-mono">{evader.steam_id}</p>

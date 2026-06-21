@@ -552,16 +552,23 @@ func (h *FearAPIHandler) GetStaffStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type punishment struct {
+	type punishItem struct {
+		ID          int64  `json:"id"`
 		AdminSteam  string `json:"admin_steamid"`
 		SteamID     string `json:"steamid"`
+		Reason      string `json:"reason"`
 		Type        int    `json:"type"`
 		Status      int    `json:"status"`
-		Duration    int    `json:"duration"`
+		Time        string `json:"time"`
+		ServerID    int    `json:"server_id"`
 		AdminName   string `json:"admin_name"`
+		Name        string `json:"name"`
+		Duration    int    `json:"duration"`
+		Created     int64  `json:"created"`
 	}
-	type punishResp struct {
-		Punishments []punishment `json:"punishments"`
+	type searchResp struct {
+		Punishments []punishItem `json:"punishments"`
+		Total       int          `json:"total"`
 	}
 
 	ids := strings.Split(adminSteamIDs, ",")
@@ -579,85 +586,79 @@ func (h *FearAPIHandler) GetStaffStats(w http.ResponseWriter, r *http.Request) {
 			"removed_bans": 0, "removed_mutes": 0,
 			"expired_bans": 0, "expired_mutes": 0,
 			"name":         "",
+			"avatar":       "",
 		}
 	}
 
-	for ptype := 1; ptype <= 2; ptype++ {
-		for status := 1; status <= 4; status++ {
-			if status == 3 {
-				continue
-			}
-			for page := 1; page <= 10; page++ {
-				apiURL := fmt.Sprintf("https://api.fearproject.ru/punishments?page=%d&limit=100&type=%d&status=%d", page, ptype, status)
+	for sid, stats := range statsMap {
+		for ptype := 1; ptype <= 2; ptype++ {
+			page := 1
+			for page <= 10 {
+				apiURL := fmt.Sprintf("https://api.fearproject.ru/punishments/search?q=%s&page=%d&limit=100&type=%d", sid, page, ptype)
 				body := h.fearGetRaw(apiURL)
 				if body == nil {
 					break
 				}
-				var data punishResp
+				var data searchResp
 				if err := json.Unmarshal(body, &data); err != nil {
 					break
 				}
 				for _, p := range data.Punishments {
-					adminID := strings.TrimSpace(p.AdminSteam)
-					if _, ok := statsMap[adminID]; !ok {
+					if strings.TrimSpace(p.AdminSteam) != sid {
 						continue
 					}
 					if p.Type == 1 {
-						statsMap[adminID]["total_bans"] = statsMap[adminID]["total_bans"].(int) + 1
-						if status == 1 {
-							statsMap[adminID]["active_bans"] = statsMap[adminID]["active_bans"].(int) + 1
-						} else if status == 2 {
-							statsMap[adminID]["removed_bans"] = statsMap[adminID]["removed_bans"].(int) + 1
-						} else if status == 4 {
-							statsMap[adminID]["expired_bans"] = statsMap[adminID]["expired_bans"].(int) + 1
+						stats["total_bans"] = stats["total_bans"].(int) + 1
+						if p.Status == 1 {
+							stats["active_bans"] = stats["active_bans"].(int) + 1
+						} else if p.Status == 2 {
+							stats["removed_bans"] = stats["removed_bans"].(int) + 1
+						} else if p.Status == 4 {
+							stats["expired_bans"] = stats["expired_bans"].(int) + 1
 						}
 					} else if p.Type == 2 {
-						statsMap[adminID]["total_mutes"] = statsMap[adminID]["total_mutes"].(int) + 1
-						if status == 1 {
-							statsMap[adminID]["active_mutes"] = statsMap[adminID]["active_mutes"].(int) + 1
-						} else if status == 2 {
-							statsMap[adminID]["removed_mutes"] = statsMap[adminID]["removed_mutes"].(int) + 1
-						} else if status == 4 {
-							statsMap[adminID]["expired_mutes"] = statsMap[adminID]["expired_mutes"].(int) + 1
+						stats["total_mutes"] = stats["total_mutes"].(int) + 1
+						if p.Status == 1 {
+							stats["active_mutes"] = stats["active_mutes"].(int) + 1
+						} else if p.Status == 2 {
+							stats["removed_mutes"] = stats["removed_mutes"].(int) + 1
+						} else if p.Status == 4 {
+							stats["expired_mutes"] = stats["expired_mutes"].(int) + 1
 						}
 					}
-					if statsMap[adminID]["name"] == "" && p.AdminName != "" {
-						statsMap[adminID]["name"] = p.AdminName
+					if stats["name"] == "" && p.AdminName != "" {
+						stats["name"] = p.AdminName
 					}
 				}
 				if len(data.Punishments) < 100 {
 					break
 				}
+				page++
 			}
 		}
 	}
 
+	allSteamIDs := make([]string, 0)
+	for sid := range statsMap {
+		allSteamIDs = append(allSteamIDs, sid)
+	}
+	if len(allSteamIDs) > 0 {
+		h.resolveNames(allSteamIDs)
+	}
+
 	result := make([]interface{}, 0)
-	for _, v := range statsMap {
+	for sid, v := range statsMap {
 		v["total"] = v["total_bans"].(int) + v["total_mutes"].(int)
 		v["active_total"] = v["active_bans"].(int) + v["active_mutes"].(int)
 		v["expired_total"] = v["expired_bans"].(int) + v["expired_mutes"].(int)
 		v["removed_total"] = v["removed_bans"].(int) + v["removed_mutes"].(int)
+		if info := h.GetName(sid); info.Name != "" {
+			v["name"] = info.Name
+		}
+		if info := h.GetName(sid); info.Avatar != "" {
+			v["avatar"] = info.Avatar
+		}
 		result = append(result, v)
-	}
-
-	steamIDsToResolve := make([]string, 0)
-	for _, sid := range ids {
-		sid = strings.TrimSpace(sid)
-		if sid != "" {
-			steamIDsToResolve = append(steamIDsToResolve, sid)
-		}
-	}
-	if len(steamIDsToResolve) > 0 {
-		h.resolveNames(steamIDsToResolve)
-	}
-
-	for _, v := range result {
-		sid, _ := v["steamid"].(string)
-		if p := h.GetName(sid); p.Name != "" {
-			v["name"] = p.Name
-		}
-		v["avatar"] = h.GetName(sid).Avatar
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -6,6 +6,7 @@ import { api } from '../services/api';
 interface VDFHistoryItem {
   steamid: string;
   nickname: string;
+  avatar?: string;
   fear_banned: boolean;
   fear_reason: string;
   fear_unban_time: string;
@@ -222,7 +223,9 @@ export default function VDFHistoryPage() {
                                   className={`px-3 py-2.5 rounded-lg border ${banned ? 'bg-red-500/5 border-red-500/10' : 'bg-[#0c0e14] border-white/5'}`}
                                 >
                                   <div className="flex items-center gap-2 mb-1.5">
-                                    {banned ? (
+                                    {r.avatar ? (
+                                      <img src={r.avatar} alt="" className="w-7 h-7 rounded-lg object-cover ring-1 ring-white/10 flex-shrink-0" />
+                                    ) : banned ? (
                                       <ShieldX className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
                                     ) : (
                                       <Check className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />

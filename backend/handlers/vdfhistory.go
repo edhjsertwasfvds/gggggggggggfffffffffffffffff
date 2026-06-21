@@ -30,6 +30,7 @@ type VDFCheckHistory struct {
 type VDFHistoryItem struct {
 	SteamID     string `json:"steamid"`
 	Nickname    string `json:"nickname"`
+	Avatar      string `json:"avatar,omitempty"`
 	FearBanned  bool   `json:"fear_banned"`
 	FearReason  string `json:"fear_reason"`
 	FearUnban   string `json:"fear_unban"`
@@ -89,9 +90,10 @@ func (r vdfHistoryResult) isBanned() bool {
 }
 
 type VDFHistoryHandler struct {
-	cfg   *config.Config
-	db    *database.DB
-	cache *vdfHistoryCache
+	cfg     *config.Config
+	db      *database.DB
+	fearAPI *FearAPIHandler
+	cache   *vdfHistoryCache
 }
 
 type vdfHistoryCache struct {
@@ -100,11 +102,12 @@ type vdfHistoryCache struct {
 	timestamp time.Time
 }
 
-func NewVDFHistoryHandler(cfg *config.Config, db *database.DB) *VDFHistoryHandler {
+func NewVDFHistoryHandler(cfg *config.Config, db *database.DB, fearAPI *FearAPIHandler) *VDFHistoryHandler {
 	return &VDFHistoryHandler{
-		cfg:   cfg,
-		db:    db,
-		cache: &vdfHistoryCache{},
+		cfg:     cfg,
+		db:      db,
+		fearAPI: fearAPI,
+		cache:   &vdfHistoryCache{},
 	}
 }
 
@@ -127,6 +130,32 @@ func (h *VDFHistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusInternalServerError)
 		return
+	}
+
+	if h.fearAPI != nil {
+		uniqueIDs := make(map[string]bool)
+		for _, check := range history {
+			for i := range check.Results {
+				sid := check.Results[i].SteamID
+				if sid != "" && !uniqueIDs[sid] {
+					uniqueIDs[sid] = true
+				}
+			}
+		}
+		ids := make([]string, 0, len(uniqueIDs))
+		for sid := range uniqueIDs {
+			ids = append(ids, sid)
+		}
+		if len(ids) > 0 {
+			h.fearAPI.resolveNames(ids)
+			for _, check := range history {
+				for i := range check.Results {
+					if info := h.fearAPI.GetName(check.Results[i].SteamID); info.Avatar != "" {
+						check.Results[i].Avatar = info.Avatar
+					}
+				}
+			}
+		}
 	}
 
 	h.cache.mu.Lock()
