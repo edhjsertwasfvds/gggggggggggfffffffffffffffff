@@ -4,7 +4,6 @@ WORKDIR /app
 COPY backend/go.mod ./
 COPY backend/. .
 RUN go mod tidy
-RUN go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 
 # Runtime stage
