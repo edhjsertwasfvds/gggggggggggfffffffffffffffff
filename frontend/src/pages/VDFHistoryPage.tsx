@@ -37,10 +37,15 @@ export default function VDFHistoryPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
   useEffect(() => {
-    api.getVDFHistory()
-      .then((res) => setChecks(res.data || []))
-      .catch(() => setError('Не удалось загрузить историю VDF-проверок'))
-      .finally(() => setLoading(false));
+    const load = () => {
+      api.getVDFHistory()
+        .then((res) => setChecks(res.data || []))
+        .catch(() => setError('Не удалось загрузить историю VDF-проверок'))
+        .finally(() => setLoading(false));
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {

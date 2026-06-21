@@ -41,10 +41,15 @@ export default function EvadersPage() {
   const [expandedEvader, setExpandedEvader] = useState<string | null>(null);
 
   useEffect(() => {
-    api.getEvaders()
-      .then((res) => setEvaders(res.data || []))
-      .catch(() => setError('Не удалось загрузить список обходников'))
-      .finally(() => setLoading(false));
+    const load = () => {
+      api.getEvaders()
+        .then((res) => setEvaders(res.data || []))
+        .catch(() => setError('Не удалось загрузить список обходников'))
+        .finally(() => setLoading(false));
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
