@@ -648,10 +648,14 @@ func (h *FearAPIHandler) GetStaffStats(w http.ResponseWriter, r *http.Request) {
 
 	result := make([]interface{}, 0)
 	for sid, v := range statsMap {
-		v["total"] = v["total_bans"].(int) + v["total_mutes"].(int)
+		bans := v["active_bans"].(int) + v["expired_bans"].(int)
+		mutes := v["active_mutes"].(int) + v["expired_mutes"].(int)
+		v["bans"] = bans
+		v["mutes"] = mutes
+		v["total"] = bans + mutes
 		v["active_total"] = v["active_bans"].(int) + v["active_mutes"].(int)
 		v["expired_total"] = v["expired_bans"].(int) + v["expired_mutes"].(int)
-		v["removed_total"] = v["removed_bans"].(int) + v["removed_mutes"].(int)
+		v["removed"] = v["removed_bans"].(int) + v["removed_mutes"].(int)
 		if info := h.GetName(sid); info.Name != "" {
 			v["name"] = info.Name
 		}
