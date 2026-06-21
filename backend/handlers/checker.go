@@ -327,19 +327,12 @@ func (h *CheckHandler) checkSingleAccount(steamID string) AccountResult {
 	}
 
 	type fearProfileResp struct {
-		Name     string `json:"name"`
-		BanInfo  struct {
+		Name    string `json:"name"`
+		BanInfo struct {
 			IsBanned       bool        `json:"isBanned"`
 			UnbanTimestamp interface{} `json:"unbanTimestamp"`
 			Reason         interface{} `json:"reason"`
 		} `json:"banInfo"`
-	}
-
-	type fearBanResp struct {
-		Banned    bool   `json:"banned"`
-		Type      string `json:"type"`
-		Reason    string `json:"reason"`
-		UnbanDate string `json:"unban_date"`
 	}
 
 	type steamBansResp struct {
@@ -354,8 +347,8 @@ func (h *CheckHandler) checkSingleAccount(steamID string) AccountResult {
 	}
 
 	type yoomaResp struct {
-		Found        bool `json:"found"`
-		Punishments  []struct {
+		Found       bool `json:"found"`
+		Punishments []struct {
 			Status   string `json:"status"`
 			Reason   string `json:"reason"`
 			TypeName string `json:"type_name"`
@@ -363,12 +356,11 @@ func (h *CheckHandler) checkSingleAccount(steamID string) AccountResult {
 	}
 
 	var profile fearProfileResp
-	var fearBan fearBanResp
 	var steamBans steamBansResp
 	var yooma yoomaResp
 
 	var wg sync.WaitGroup
-	wg.Add(4)
+	wg.Add(3)
 
 	go func() {
 		defer wg.Done()
@@ -384,26 +376,6 @@ func (h *CheckHandler) checkSingleAccount(steamID string) AccountResult {
 				}
 				profile.BanInfo.UnbanTimestamp = bi["unbanTimestamp"]
 				profile.BanInfo.Reason = bi["reason"]
-			}
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		url := fmt.Sprintf("https://api.fearproject.ru/bans/check/%s", steamID)
-		data := h.httpGet(url)
-		if data != nil {
-			if b, ok := data["banned"].(bool); ok {
-				fearBan.Banned = b
-			}
-			if t, ok := data["type"].(string); ok {
-				fearBan.Type = t
-			}
-			if r, ok := data["reason"].(string); ok {
-				fearBan.Reason = r
-			}
-			if u, ok := data["unban_date"].(string); ok {
-				fearBan.UnbanDate = u
 			}
 		}
 	}()
@@ -445,32 +417,22 @@ func (h *CheckHandler) checkSingleAccount(steamID string) AccountResult {
 
 	result.Name = profile.Name
 
-	fearBanned := profile.BanInfo.IsBanned
-	if !fearBanned {
-		fearBanned = fearBan.Banned
-	}
-
-	if fearBanned {
+	if profile.BanInfo.IsBanned {
 		result.FearBanned = true
 		result.Status = "banned"
 		result.BanType = "FEAR"
-		if fearBan.Reason != "" {
-			result.FearReason = fearBan.Reason
-			result.BanReason = fearBan.Reason
-		} else if profile.BanInfo.Reason != nil {
+		if profile.BanInfo.Reason != nil {
 			if r, ok := profile.BanInfo.Reason.(string); ok {
 				result.FearReason = r
 				result.BanReason = r
 			}
 		}
-		if fearBan.UnbanDate != "" {
-			result.FearUnbanTime = fearBan.UnbanDate
-		} else if profile.BanInfo.UnbanTimestamp != nil {
+		if profile.BanInfo.UnbanTimestamp != nil {
 			if ts, ok := profile.BanInfo.UnbanTimestamp.(float64); ok && ts > 0 {
 				result.FearUnbanTime = fmt.Sprintf("до %s", time.Unix(int64(ts), 0).UTC().Format("02.01.2006 15:04"))
-			} else if profile.BanInfo.UnbanTimestamp == nil {
-				result.FearUnbanTime = "Навсегда"
 			}
+		} else if profile.BanInfo.IsBanned {
+			result.FearUnbanTime = "Навсегда"
 		}
 	}
 
