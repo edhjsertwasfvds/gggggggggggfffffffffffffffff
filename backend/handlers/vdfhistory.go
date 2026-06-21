@@ -148,10 +148,10 @@ func (h *VDFHistoryHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(ids) > 0 {
 			h.fearAPI.resolveNames(ids)
-			for _, check := range history {
-				for i := range check.Results {
-					if info := h.fearAPI.GetName(check.Results[i].SteamID); info.Avatar != "" {
-						check.Results[i].Avatar = info.Avatar
+			for ci := range history {
+				for i := range history[ci].Results {
+					if info := h.fearAPI.GetName(history[ci].Results[i].SteamID); info.Avatar != "" {
+						history[ci].Results[i].Avatar = info.Avatar
 					}
 				}
 			}
