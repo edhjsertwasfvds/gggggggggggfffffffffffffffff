@@ -105,9 +105,10 @@ export default function BansAndMutesPage() {
   };
 
   const getProfileName = (steamid: string, fallback?: string) => {
+    if (!steamid) return undefined;
     const p = profiles[steamid];
-    if (p?.name) return p.name;
-    if (fallback) return fallback;
+    if (p?.name && p.name !== 'undefined') return p.name;
+    if (fallback && fallback !== steamid && fallback !== 'undefined' && fallback !== '') return fallback;
     return undefined;
   };
 
@@ -203,8 +204,8 @@ export default function BansAndMutesPage() {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <p className="text-sm text-white truncate">{playerName || p.steamid}</p>
-                      {playerName && playerName !== p.steamid && (
+                      <p className="text-sm text-white truncate">{playerName || p.steamid || '—'}</p>
+                      {playerName && p.steamid && (
                         <a href={`https://fearproject.ru/profile/${p.steamid}`} target="_blank" rel="noopener noreferrer"
                           className="text-[10px] text-gray-500 hover:text-blue-400 font-mono truncate block">{p.steamid}</a>
                       )}

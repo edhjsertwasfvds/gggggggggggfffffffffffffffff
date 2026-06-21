@@ -24,7 +24,8 @@ interface StaffStats {
 }
 
 interface AdminEntry {
-  steamid: string;
+  steamid?: string;
+  steam_id?: string;
   name?: string;
   nickname?: string;
   group_name?: string;
@@ -45,14 +46,14 @@ export default function StatsPage() {
       const adminList: AdminEntry[] = adminsRes?.admins || [];
       setAdmins(adminList);
 
-      const steamIds = adminList.map(a => a.steamid).filter(Boolean);
+      const steamIds = adminList.map(a => a.steamid || a.steam_id).filter(Boolean) as string[];
       if (steamIds.length > 0) {
         const res = await api.getStaffStats(steamIds);
         const statsList: StaffStats[] = res.stats || [];
 
         for (const s of statsList) {
           if (!s.name || s.name === s.steamid) {
-            const admin = adminList.find(a => a.steamid === s.steamid);
+            const admin = adminList.find(a => (a.steamid === s.steamid) || (a.steam_id === s.steamid));
             if (admin) {
               s.name = admin.name || admin.nickname || s.steamid;
             }
@@ -140,7 +141,7 @@ export default function StatsPage() {
         </div>
         <div className="divide-y divide-white/[0.03] max-h-[calc(100vh-400px)] overflow-y-auto">
           {sorted.map((s, i) => {
-            const admin = admins.find(a => a.steamid === s.steamid);
+            const admin = admins.find(a => (a.steamid === s.steamid) || (a.steam_id === s.steamid));
             return (
               <motion.div key={s.steamid} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i * 0.02, 0.5) }}
                 className="grid grid-cols-[40px_1fr_100px_80px_80px_80px_80px] gap-3 px-5 py-3 hover:bg-[#161a25] transition-colors items-center">

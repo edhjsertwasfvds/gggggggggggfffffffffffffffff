@@ -527,6 +527,9 @@ func extractOnlinePlayers(servers []map[string]interface{}) map[string]onlinePla
 			}
 			sid, _ := player["steam_id"].(string)
 			if sid == "" {
+				sid, _ = player["steamid"].(string)
+			}
+			if sid == "" {
 				continue
 			}
 			name := getString(player, "nickname")
