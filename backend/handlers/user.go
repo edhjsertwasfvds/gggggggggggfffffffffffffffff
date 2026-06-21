@@ -20,32 +20,57 @@ func NewUserHandler(cfg *config.Config, db *database.DB) *UserHandler {
 }
 
 func (h *UserHandler) GetStaff(w http.ResponseWriter, r *http.Request) {
-	staff, err := h.db.GetStaffFromFile()
-	if err != nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"data":    map[string]interface{}{},
-		})
-		return
+	result := make([]map[string]interface{}, 0)
+
+	if h.db != nil {
+		users, err := h.db.GetAllUsers()
+		if err == nil {
+			for _, u := range users {
+				if u.Level < 1 {
+					continue
+				}
+				rp, ok := h.cfg.RoleMap[u.StaffGroup]
+				level := u.Level
+				roleName := u.StaffRole
+				if ok {
+					level = rp.Level
+					roleName = rp.RoleName
+				}
+				result = append(result, map[string]interface{}{
+					"steam_id":     u.SteamID,
+					"name":         u.DisplayName,
+					"discord_id":   u.DiscordID,
+					"discord_name": u.Username,
+					"role":         roleName,
+					"group_name":   u.StaffGroup,
+					"level":        level,
+					"updated_at":   u.UpdatedAt,
+				})
+			}
+		}
 	}
 
-	result := make([]map[string]interface{}, 0)
-	for _, s := range staff {
-		rp, ok := h.cfg.RoleMap[s.GroupName]
-		level := 0
-		if ok {
-			level = rp.Level
+	if len(result) == 0 {
+		staff, err := h.db.GetStaffFromFile()
+		if err == nil {
+			for _, s := range staff {
+				rp, ok := h.cfg.RoleMap[s.GroupName]
+				level := 0
+				if ok {
+					level = rp.Level
+				}
+				result = append(result, map[string]interface{}{
+					"steam_id":     s.SteamID,
+					"name":         s.Name,
+					"discord_id":   s.DiscordID,
+					"discord_name": s.DiscordName,
+					"role":         s.Role,
+					"group_name":   s.GroupName,
+					"level":        level,
+					"updated_at":   s.UpdatedAt,
+				})
+			}
 		}
-		result = append(result, map[string]interface{}{
-			"steam_id":     s.SteamID,
-			"name":         s.Name,
-			"discord_id":   s.DiscordID,
-			"discord_name": s.DiscordName,
-			"role":         s.Role,
-			"group_name":   s.GroupName,
-			"level":        level,
-			"updated_at":   s.UpdatedAt,
-		})
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{

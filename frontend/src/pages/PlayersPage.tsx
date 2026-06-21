@@ -15,6 +15,8 @@ interface PlayerRow extends FearAPIPlayer {
   avatar_url?: string;
   account_created?: number;
   flags?: string[];
+  staffRole?: string;
+  staffGroup?: string;
 }
 
 export default function PlayersPage() {
@@ -92,6 +94,24 @@ export default function PlayersPage() {
           }
         } catch {}
       }
+
+      // Fetch staff roles
+      try {
+        const staffRes = await api.getStaff();
+        const staffList = (staffRes?.data || (Array.isArray(staffRes) ? staffRes : [])) as any[];
+        const staffMap = new Map<string, { role: string; group: string }>();
+        for (const s of staffList) {
+          const sid = s.steam_id || s.steamid;
+          if (sid) staffMap.set(sid, { role: s.role || s.staff_role || '', group: s.group_name || s.staff_group || '' });
+        }
+        for (const p of allPlayers) {
+          const staffInfo = staffMap.get(p.steam_id);
+          if (staffInfo) {
+            p.staffRole = staffInfo.role;
+            p.staffGroup = staffInfo.group;
+          }
+        }
+      } catch {}
 
       setPlayers(allPlayers);
       setLastRefresh(new Date());
@@ -266,6 +286,11 @@ export default function PlayersPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-white truncate">{player.name || player.nickname || 'Unknown'}</p>
+                    {player.staffRole && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 whitespace-nowrap">
+                        {player.staffRole}
+                      </span>
+                    )}
                     {player.flags && player.flags.length > 0 && (
                       <div className="flex gap-1">
                         {player.flags.map((f, fi) => (
