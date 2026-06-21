@@ -957,11 +957,7 @@ func (db *DB) UpdateVDFHistoryBan(steamID string, fearBanned bool, fearReason, f
 	_, err := db.pool.Exec(ctx, `
 		UPDATE vdf_history
 		SET fear_banned = $2, fear_reason = $3, fear_unban_time = $4
-		WHERE id = (
-			SELECT id FROM vdf_history
-			WHERE steamid = $1
-			ORDER BY id DESC LIMIT 1
-		)
+		WHERE steamid = $1
 	`, steamID, fearBanned, fearReason, fearUnbanTime)
 	return err
 }

@@ -600,15 +600,29 @@ func (h *EvadersHandler) refreshBannedAccounts(evaders []Evader) {
 		return
 	}
 
-	// Собираем все уникальные steamid забаненных
-	bannedIDs := make(map[string]bool)
+	// 1. Собираем ВСЕ уникальные steamid (и обходники, и забаненные)
+	allSteamIDs := make(map[string]bool)
 	for _, e := range evaders {
+		allSteamIDs[e.SteamID] = true
 		for _, bd := range e.BannedDetails {
-			bannedIDs[bd.SteamID] = true
+			allSteamIDs[bd.SteamID] = true
 		}
 	}
 
-	for sid := range bannedIDs {
+	// 2. Для каждого steamid находим ВСЕ связанные аккаунты через config_accounts
+	expandedIDs := make(map[string]bool)
+	for sid := range allSteamIDs {
+		linked, err := h.db.GetLinkedSteamIDs(sid)
+		if err == nil {
+			for _, lsid := range linked {
+				expandedIDs[lsid] = true
+			}
+		}
+		expandedIDs[sid] = true
+	}
+
+	// 3. Проверяем каждый аккаунт через Fear API и обновляем
+	for sid := range expandedIDs {
 		profile := h.fetchFearProfile(sid)
 		if profile == nil {
 			continue
@@ -632,13 +646,15 @@ func (h *EvadersHandler) refreshBannedAccounts(evaders []Evader) {
 		}
 
 		unbanTime := ""
-		if unbanTS > 0 {
-			unbanTime = time.Unix(int64(unbanTS), 0).UTC().Format("02.01.2006 15:04")
-		} else if isBanned {
-			unbanTime = "Навсегда"
+		if isBanned {
+			if unbanTS > 0 {
+				unbanTime = time.Unix(int64(unbanTS), 0).UTC().Format("02.01.2006 15:04")
+			} else {
+				unbanTime = "Навсегда"
+			}
 		}
 
-		// Обновляем запись в vdf_history для этого steamid
+		// Обновляем (включая снятие банов)
 		h.updateBanInHistory(sid, isBanned, reason, unbanTime)
 	}
 }
