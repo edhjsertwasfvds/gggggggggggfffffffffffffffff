@@ -146,6 +146,9 @@ func (h *EvadersHandler) GetEvaders(w http.ResponseWriter, r *http.Request) {
 	h.cache.timestamp = time.Now()
 	h.cache.mu.Unlock()
 
+	// Background: обновляем баны по найденным обходникам
+	go h.refreshBannedAccounts(evaders)
+
 	h.writeJSON(w, evaders)
 }
 
@@ -590,4 +593,91 @@ func detectBanReasonFromHistory(details []BannedDetail) string {
 		return details[0].Bans
 	}
 	return "Banned"
+}
+
+func (h *EvadersHandler) refreshBannedAccounts(evaders []Evader) {
+	if h.db == nil || len(evaders) == 0 {
+		return
+	}
+
+	// Собираем все уникальные steamid забаненных
+	bannedIDs := make(map[string]bool)
+	for _, e := range evaders {
+		for _, bd := range e.BannedDetails {
+			bannedIDs[bd.SteamID] = true
+		}
+	}
+
+	for sid := range bannedIDs {
+		profile := h.fetchFearProfile(sid)
+		if profile == nil {
+			continue
+		}
+
+		bi, _ := profile["banInfo"].(map[string]interface{})
+		isBanned := false
+		reason := ""
+		var unbanTS float64
+
+		if bi != nil {
+			if ib, ok := bi["isBanned"].(bool); ok {
+				isBanned = ib
+			}
+			if r, ok := bi["reason"].(string); ok {
+				reason = r
+			}
+			if ut, ok := bi["unbanTimestamp"].(float64); ok {
+				unbanTS = ut
+			}
+		}
+
+		unbanTime := ""
+		if unbanTS > 0 {
+			unbanTime = time.Unix(int64(unbanTS), 0).UTC().Format("02.01.2006 15:04")
+		} else if isBanned {
+			unbanTime = "Навсегда"
+		}
+
+		// Обновляем запись в vdf_history для этого steamid
+		h.updateBanInHistory(sid, isBanned, reason, unbanTime)
+	}
+}
+
+func (h *EvadersHandler) fetchFearProfile(steamID string) map[string]interface{} {
+	if h.cfg.FearCookie == "" {
+		return nil
+	}
+	url := fmt.Sprintf("https://api.fearproject.ru/profile/%s", steamID)
+	req, _ := http.NewRequest("GET", url, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Referer", "https://fearproject.ru/")
+	req.Header.Set("Origin", "https://fearproject.ru")
+	cleaned := strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(h.cfg.FearCookie, "\n", ""), "\r", ""))
+	if cleaned != "" {
+		req.Header.Set("Cookie", cleaned)
+	}
+
+	resp, err := h.client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil
+	}
+
+	var data map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil
+	}
+	return data
+}
+
+func (h *EvadersHandler) updateBanInHistory(steamID string, isBanned bool, reason string, unbanTime string) {
+	if h.db == nil {
+		return
+	}
+	_ = h.db.UpdateVDFHistoryBan(steamID, isBanned, reason, unbanTime)
 }

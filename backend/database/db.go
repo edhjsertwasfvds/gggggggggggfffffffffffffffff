@@ -948,3 +948,20 @@ func (db *DB) GetConfigAccounts(configHash string) ([]string, error) {
 	}
 	return ids, nil
 }
+
+func (db *DB) UpdateVDFHistoryBan(steamID string, fearBanned bool, fearReason, fearUnbanTime string) error {
+	if db.pool == nil {
+		return nil
+	}
+	ctx := context.Background()
+	_, err := db.pool.Exec(ctx, `
+		UPDATE vdf_history
+		SET fear_banned = $2, fear_reason = $3, fear_unban_time = $4
+		WHERE id = (
+			SELECT id FROM vdf_history
+			WHERE steamid = $1
+			ORDER BY id DESC LIMIT 1
+		)
+	`, steamID, fearBanned, fearReason, fearUnbanTime)
+	return err
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Download, ExternalLink, Loader2, Calendar, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Download, ExternalLink, Loader2, Calendar, AlertCircle, ChevronDown, ChevronUp, ShieldX, Check } from 'lucide-react';
 import { api } from '../services/api';
 
 interface VDFHistoryItem {
@@ -8,12 +8,13 @@ interface VDFHistoryItem {
   nickname: string;
   fear_banned: boolean;
   fear_reason: string;
-  fear_unban: string;
+  fear_unban_time: string;
   vac_banned: boolean;
+  vac_days_ago: number;
   game_bans: number;
-  community_ban: boolean;
   yooma_banned: boolean;
   yooma_reason: string;
+  admin_group: string;
 }
 
 interface VDFCheck {
@@ -68,7 +69,45 @@ export default function VDFHistoryPage() {
   };
 
   const isAccountBanned = (r: VDFHistoryItem) => {
-    return r.fear_banned || r.vac_banned || r.game_bans > 0 || r.community_ban || r.yooma_banned;
+    return r.fear_banned || r.vac_banned || r.game_bans > 0 || r.yooma_banned;
+  };
+
+  const getBanSources = (r: VDFHistoryItem) => {
+    const sources: { source: string; reason: string; duration: string; until: string }[] = [];
+
+    if (r.fear_banned) {
+      sources.push({
+        source: 'Fear',
+        reason: r.fear_reason || 'Обход',
+        duration: r.fear_unban_time ? `до ${r.fear_unban_time}` : 'Навсегда',
+        until: r.fear_unban_time || 'Навсегда',
+      });
+    }
+    if (r.vac_banned) {
+      sources.push({
+        source: 'VAC',
+        reason: 'VAC Ban',
+        duration: r.vac_days_ago ? `${r.vac_days_ago} дн. назад` : 'Навсегда',
+        until: 'Навсегда',
+      });
+    }
+    if (r.game_bans > 0) {
+      sources.push({
+        source: 'Game',
+        reason: `Game Ban (×${r.game_bans})`,
+        duration: 'Навсегда',
+        until: 'Навсегда',
+      });
+    }
+    if (r.yooma_banned) {
+      sources.push({
+        source: 'Yooma',
+        reason: r.yooma_reason || 'Yooma Ban',
+        duration: 'Навсегда',
+        until: 'Навсегда',
+      });
+    }
+    return sources;
   };
 
   return (
@@ -76,7 +115,7 @@ export default function VDFHistoryPage() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <h1 className="text-2xl font-bold text-white">История VDF-проверок</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Архив загруженных config.vdf с SteamID и ссылками на файлы
+          Архив загруженных config.vdf с SteamID и статусами банов
         </p>
       </motion.div>
 
@@ -171,12 +210,19 @@ export default function VDFHistoryPage() {
                           <div className="space-y-1.5">
                             {check.results.map((r, ri) => {
                               const banned = isAccountBanned(r);
+                              const banSources = getBanSources(r);
                               return (
                                 <div
                                   key={ri}
-                                  className={`flex items-center gap-3 px-3 py-2 rounded-lg border ${banned ? 'bg-red-500/5 border-red-500/10' : 'bg-[#0c0e14] border-white/5'}`}
+                                  className={`px-3 py-2.5 rounded-lg border ${banned ? 'bg-red-500/5 border-red-500/10' : 'bg-[#0c0e14] border-white/5'}`}
                                 >
-                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    {banned ? (
+                                      <ShieldX className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                                    ) : (
+                                      <Check className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
+                                    )}
+                                    <span className="text-xs font-medium text-white">{r.nickname || 'Unknown'}</span>
                                     <span className={`text-xs font-mono ${banned ? 'text-red-400' : 'text-gray-400'}`}>{r.steamid}</span>
                                     <a
                                       href={`https://fearproject.ru/profile/${r.steamid}`}
@@ -194,43 +240,30 @@ export default function VDFHistoryPage() {
                                     >
                                       <ExternalLink className="w-3 h-3" />
                                     </a>
-                                    {r.nickname && r.nickname !== r.steamid && (
-                                      <span className="text-xs text-gray-600 truncate hidden sm:inline">{r.nickname}</span>
-                                    )}
                                   </div>
-                                  {banned ? (
-                                    <div className="flex flex-wrap gap-1.5 flex-shrink-0">
-                                      {r.fear_banned && (
-                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#4f7cff]/10 border border-[#4f7cff]/20 rounded text-[11px] text-[#7aa2ff]">
-                                          Fear: {r.fear_reason || 'Обход'}
-                                          {r.fear_unban && (
-                                            <span className="text-[#5a86d8] ml-1">до {r.fear_unban}</span>
+
+                                  {banned && banSources.length > 0 ? (
+                                    <div className="space-y-1 ml-5">
+                                      {banSources.map((bs, bsi) => (
+                                        <div key={bsi} className="flex items-center gap-3 text-[11px]">
+                                          <span className={`px-1.5 py-0.5 rounded font-bold ${
+                                            bs.source === 'Fear' ? 'bg-[#4f7cff]/10 text-[#7aa2ff]' :
+                                            bs.source === 'VAC' ? 'bg-red-500/10 text-red-400' :
+                                            bs.source === 'Game' ? 'bg-orange-500/10 text-orange-400' :
+                                            'bg-purple-500/10 text-purple-400'
+                                          }`}>
+                                            {bs.source}
+                                          </span>
+                                          <span className="text-gray-400">Причина: <span className="text-white">{bs.reason}</span></span>
+                                          <span className="text-gray-400">Срок: <span className="text-red-400">{bs.duration}</span></span>
+                                          {bs.until !== 'Навсегда' && (
+                                            <span className="text-gray-400">До: <span className="text-yellow-400">{bs.until}</span></span>
                                           )}
-                                        </span>
-                                      )}
-                                      {r.vac_banned && (
-                                        <span className="inline-flex items-center px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded text-[11px] text-red-400">
-                                          VAC
-                                        </span>
-                                      )}
-                                      {r.game_bans > 0 && (
-                                        <span className="inline-flex items-center px-2 py-0.5 bg-orange-500/10 border border-orange-500/20 rounded text-[11px] text-orange-400">
-                                          Game Ban (x{r.game_bans})
-                                        </span>
-                                      )}
-                                      {r.community_ban && (
-                                        <span className="inline-flex items-center px-2 py-0.5 bg-yellow-500/10 border border-yellow-500/20 rounded text-[11px] text-yellow-400">
-                                          Community
-                                        </span>
-                                      )}
-                                      {r.yooma_banned && (
-                                        <span className="inline-flex items-center px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded text-[11px] text-purple-400">
-                                          Yooma: {r.yooma_reason}
-                                        </span>
-                                      )}
+                                        </div>
+                                      ))}
                                     </div>
                                   ) : (
-                                    <span className="text-[11px] text-green-400/60 flex-shrink-0">чисто</span>
+                                    <span className="text-[11px] text-green-400/60 ml-5">чисто</span>
                                   )}
                                 </div>
                               );
