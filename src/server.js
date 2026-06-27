@@ -28,6 +28,7 @@ const {
     REQUEST_TIMEOUT_SLOW,
     IS_PROD,
     RAILWAY_LIGHT_MODE,
+    ALLOWED_ORIGINS,
     BG_CYCLE_MS,
     BG_STAGGER_MS,
     PUNISHMENTS_REQ_TIMEOUT_MS,
@@ -1355,17 +1356,23 @@ const server = http.createServer(async (req, res) => {
     
     // CORS headers
     const configuredAllowedOrigin = (process.env.ALLOWED_ORIGIN || '').trim();
-    const allowAnyOrigin = !IS_PROD && !configuredAllowedOrigin;
-    const allowedOrigin = configuredAllowedOrigin || (allowAnyOrigin ? '*' : '');
-    const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
+    const allowAnyOrigin = !IS_PROD && !configuredAllowedOrigin && ALLOWED_ORIGINS.length === 0;
     const reqOrigin = req.headers.origin || '';
+    const isAllowedOrigin = allowAnyOrigin ||
+        ALLOWED_ORIGINS.length === 0 ||
+        ALLOWED_ORIGINS.includes(reqOrigin) ||
+        ALLOWED_ORIGINS.includes('*');
+    const allowedOrigin = configuredAllowedOrigin ||
+        (ALLOWED_ORIGINS.length === 1 && ALLOWED_ORIGINS[0]) ||
+        (allowAnyOrigin ? '*' : reqOrigin);
+    const parsedUrl = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
     const isApiRequest = parsedUrl.pathname.startsWith('/api/');
     const allowMethods = isApiRequest ? getAllowedMethodsForApiPath(parsedUrl.pathname) : 'GET, OPTIONS';
-    if (isApiRequest && allowedOrigin && allowedOrigin !== '*' && reqOrigin && reqOrigin !== allowedOrigin) {
+    if (isApiRequest && !isAllowedOrigin && reqOrigin) {
         sendError(res, 403, 'ORIGIN_NOT_ALLOWED', 'Origin not allowed');
         return;
     }
-    if (allowedOrigin) res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
+    if (allowedOrigin || (isAllowedOrigin && reqOrigin)) res.setHeader('Access-Control-Allow-Origin', allowedOrigin || reqOrigin);
     res.setHeader('Access-Control-Allow-Methods', allowMethods);
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
     res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -4264,7 +4271,7 @@ process.on('SIGTERM', () => {
     process.exit(1);
 });
 
-const configuredAllowedOrigin = (process.env.ALLOWED_ORIGIN || '').trim();
+const wssAllowedOrigin = configuredAllowedOrigin || (ALLOWED_ORIGINS.length === 1 ? ALLOWED_ORIGINS[0] : '');
 const wss = attachWss({
     server,
     auth,
@@ -4284,7 +4291,7 @@ const wss = attachWss({
     sendFaceitLevels,
     sendPlayerGames,
     broadcastUpdate,
-    allowedOrigin: configuredAllowedOrigin,
+    allowedOrigin: wssAllowedOrigin,
     isProd: IS_PROD
 });
 
