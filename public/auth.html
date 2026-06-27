@@ -186,88 +186,35 @@
             </svg>
         </div>
         <h1 id="authTitle">Вход в систему</h1>
-        <p class="subtitle" id="authSubtitle">Введите логин и пароль для доступа</p>
+        <p class="subtitle" id="authSubtitle">Авторизация через Discord</p>
 
         <div class="access-notice" id="accessNotice">
-            Доступ только для авторизованных пользователей.
+            Доступ только для участников Discord-сервера FearProject с ролью стаффа.
         </div>
 
         <div class="error-msg" id="errorMsg"></div>
 
-        <form id="loginForm" autocomplete="on" class="auth-form">
-            <div class="field">
-                <label for="username">Логин</label>
-                <input type="text" id="username" name="username" placeholder="Введите логин" autocomplete="username" required>
-            </div>
-            <div class="field">
-                <label for="password">Пароль</label>
-                <input type="password" id="password" name="password" placeholder="Введите пароль" autocomplete="current-password" required>
-            </div>
-            <button type="submit" class="btn" id="submitBtn">Войти</button>
-            <div class="divider" id="discordDivider">или</div>
-            <a href="/api/auth/discord" id="discordLoginBtn" class="discord-btn" style="width:100%;justify-content:center;padding:12px 16px;margin-top:4px;display:none">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-                </svg>
-                Войти через Discord
-            </a>
-            <div class="divider" id="inviteDivider">или</div>
-            <a href="#" id="showInviteLink" class="invite-link">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/>
-                    <path d="M13 5v2"/>
-                    <path d="M13 17v2"/>
-                    <path d="M13 11v2"/>
-                </svg>
-                Авторизация через пригласительный код
-            </a>
-        </form>
-
-        <div id="inviteCodeStep" style="display:none">
-            <p class="subtitle mb-4">Введите пригласительный код для регистрации</p>
-            <div class="error-msg" id="inviteErrorMsg"></div>
-            <div class="field">
-                <label for="inviteCodeInput">Пригласительный код</label>
-                <input type="text" id="inviteCodeInput" placeholder="Вставьте код из приглашения">
-            </div>
-            <button type="button" class="btn" id="inviteCodeBtn">Продолжить</button>
-            <p class="text-center mt-4">
-                <a href="#" id="backToLoginLink" style="color:#818cf8;font-size:13px;text-decoration:none" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">← Назад к входу</a>
-            </p>
-        </div>
-
-        <form id="registerForm" autocomplete="on" class="auth-form" style="display:none">
-            <input type="hidden" id="regCode" name="regCode">
-            <p id="regLevelHint" class="text-center text-sm text-indigo-300 mb-4" style="display:none"></p>
-            <div class="field">
-                <label for="regUsername">Логин</label>
-                <input type="text" id="regUsername" placeholder="Введите логин" autocomplete="username" required>
-            </div>
-            <div class="field">
-                <label for="regPassword">Пароль</label>
-                <input type="password" id="regPassword" placeholder="Минимум 6 символов" autocomplete="new-password" required>
-            </div>
-            <button type="submit" class="btn" id="registerBtn">Зарегистрироваться</button>
-        </form>
+        <a href="/api/auth/discord" id="discordLoginBtn" class="discord-btn" style="width:100%;justify-content:center;padding:12px 16px;margin-top:4px;display:none">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+            </svg>
+            Войти через Discord
+        </a>
+        <p class="subtitle" id="redirectHint" style="margin-top:16px;display:none">
+            Перенаправление на Discord...
+        </p>
     </div>
 
     <script>
-        const form = document.getElementById('loginForm');
-        const registerForm = document.getElementById('registerForm');
         const errorMsg = document.getElementById('errorMsg');
-        const submitBtn = document.getElementById('submitBtn');
-        const registerBtn = document.getElementById('registerBtn');
         const accessNotice = document.getElementById('accessNotice');
+        const discordBtn = document.getElementById('discordLoginBtn');
+        const redirectHint = document.getElementById('redirectHint');
 
         const params = new URLSearchParams(window.location.search);
-        const inviteFromUrl = params.get('invite');
-        const inviteCodeStep = document.getElementById('inviteCodeStep');
-        const inviteCodeInput = document.getElementById('inviteCodeInput');
-        const inviteCodeBtn = document.getElementById('inviteCodeBtn');
-        const inviteErrorMsg = document.getElementById('inviteErrorMsg');
-
-        const levelNames = { 1: 'Мл. модер', 2: 'Модер', 3: 'СТМ / СТА', 4: 'ГА', 5: 'Суперадмин' };
         const errorFromUrl = params.get('error');
+        const discordAuthData = params.get('discord_auth');
+
         if (errorFromUrl) {
             const errorMap = {
                 'discord_denied': 'Вход через Discord отменён',
@@ -277,7 +224,7 @@
             errorMsg.textContent = errorMap[errorFromUrl] || 'Ошибка авторизации';
             errorMsg.style.display = 'block';
         }
-        const discordAuthData = params.get('discord_auth');
+
         if (discordAuthData) {
             try {
                 const normalized = discordAuthData.replace(/-/g, '+').replace(/_/g, '/');
@@ -291,6 +238,7 @@
                 errorMsg.style.display = 'block';
             }
         }
+
         (async function loadPublicConfig() {
             try {
                 const r = await fetch('/api/public-config');
@@ -307,181 +255,19 @@
                         </div>
                     `;
                 }
-                const discordBtn = document.getElementById('discordLoginBtn');
-                const discordDivider = document.getElementById('discordDivider');
                 if (discordBtn && cfg?.discordAuthEnabled) {
                     discordBtn.style.display = 'inline-flex';
-                    if (discordDivider) discordDivider.style.display = 'flex';
+                    if (!errorFromUrl && !discordAuthData) {
+                        redirectHint.style.display = 'block';
+                        setTimeout(() => {
+                            window.location.href = discordBtn.href;
+                        }, 1200);
+                    }
                 } else {
-                    if (discordBtn) discordBtn.style.display = 'none';
-                    if (discordDivider) discordDivider.style.display = 'none';
+                    discordBtn.style.display = 'none';
                 }
             } catch (_) {}
         })();
-
-        function showRegForm(code, level) {
-            document.getElementById('regCode').value = code;
-            inviteCodeStep.style.display = 'none';
-            document.getElementById('authSubtitle').textContent = 'Придумайте логин и пароль';
-            const hint = document.getElementById('regLevelHint');
-            hint.textContent = 'Код даёт уровень ' + level + ' (' + (levelNames[level] || '') + ')';
-            hint.style.display = 'block';
-            registerForm.style.display = 'block';
-        }
-        if (inviteFromUrl) {
-            form.style.display = 'none';
-            document.getElementById('authTitle').textContent = 'Регистрация';
-            document.getElementById('authSubtitle').textContent = 'Проверка кода...';
-            inviteCodeStep.style.display = 'block';
-            inviteCodeInput.value = inviteFromUrl;
-            inviteCodeBtn.disabled = true;
-            fetch('/api/auth/validate-invite?code=' + encodeURIComponent(inviteFromUrl))
-                .then(r => r.json())
-                .then(data => {
-                    if (data.valid) {
-                        showRegForm(inviteFromUrl, data.level);
-                    } else {
-                        document.getElementById('authSubtitle').textContent = 'Введите пригласительный код';
-                        inviteErrorMsg.textContent = 'Код недействителен или уже использован';
-                        inviteErrorMsg.style.display = 'block';
-                    }
-                })
-                .catch(() => { document.getElementById('authSubtitle').textContent = 'Введите пригласительный код'; })
-                .finally(() => { inviteCodeBtn.disabled = false; });
-        }
-
-        document.getElementById('showInviteLink').onclick = (e) => {
-            e.preventDefault();
-            form.style.display = 'none';
-            document.getElementById('authTitle').textContent = 'Регистрация';
-            document.getElementById('authSubtitle').textContent = 'Введите пригласительный код';
-            inviteCodeStep.style.display = 'block';
-            inviteCodeInput.value = '';
-            inviteCodeInput.focus();
-        };
-
-        document.getElementById('backToLoginLink').onclick = (e) => {
-            e.preventDefault();
-            inviteCodeStep.style.display = 'none';
-            registerForm.style.display = 'none';
-            document.getElementById('regLevelHint').style.display = 'none';
-            form.style.display = 'block';
-            document.getElementById('authTitle').textContent = 'Вход в систему';
-            document.getElementById('authSubtitle').textContent = 'Введите логин и пароль для доступа';
-        };
-
-        inviteCodeBtn.onclick = async () => {
-            const code = inviteCodeInput.value.trim();
-            if (!code) { inviteErrorMsg.textContent = 'Введите код'; inviteErrorMsg.style.display = 'block'; return; }
-            inviteErrorMsg.style.display = 'none';
-            inviteCodeBtn.disabled = true;
-            inviteCodeBtn.textContent = 'Проверка...';
-            try {
-                const res = await fetch('/api/auth/validate-invite?code=' + encodeURIComponent(code));
-                const data = await res.json();
-                if (data.valid) {
-                    showRegForm(code, data.level);
-                } else {
-                    inviteErrorMsg.textContent = 'Код недействителен или уже использован';
-                    inviteErrorMsg.style.display = 'block';
-                }
-            } catch (_) {
-                inviteErrorMsg.textContent = 'Ошибка проверки';
-                inviteErrorMsg.style.display = 'block';
-            }
-            inviteCodeBtn.disabled = false;
-            inviteCodeBtn.textContent = 'Продолжить';
-        };
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            errorMsg.style.display = 'none';
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Вход...';
-
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-
-            try {
-                const res = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    localStorage.setItem('user', JSON.stringify({
-                        id: data.user.id,
-                        username: data.user.username,
-                        displayName: data.user.displayName,
-                        level: data.user.level,
-                        sessionToken: data.sessionToken,
-                        expiresAt: data.expiresAt
-                    }));
-                    window.location.href = '/';
-                } else {
-                    errorMsg.textContent = data.error || 'Ошибка авторизации';
-                    errorMsg.style.display = 'block';
-                }
-            } catch (err) {
-                errorMsg.textContent = 'Ошибка соединения с сервером';
-                errorMsg.style.display = 'block';
-            }
-
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Войти';
-        });
-
-        inviteCodeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') inviteCodeBtn.click(); });
-
-        registerForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            errorMsg.style.display = 'none';
-            registerBtn.disabled = true;
-            registerBtn.textContent = 'Регистрация...';
-
-            const username = document.getElementById('regUsername').value.trim();
-            const password = document.getElementById('regPassword').value;
-            const code = document.getElementById('regCode').value.trim();
-
-            try {
-                const res = await fetch('/api/auth/register-by-invite', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password, inviteCode: code })
-                });
-                const data = await res.json();
-
-                if (data.success) {
-                    localStorage.setItem('user', JSON.stringify({
-                        id: data.user.id,
-                        username: data.user.username,
-                        displayName: data.user.displayName,
-                        level: data.user.level,
-                        sessionToken: data.sessionToken,
-                        expiresAt: data.expiresAt
-                    }));
-                    window.location.href = '/';
-                } else {
-                    errorMsg.textContent = data.error || 'Ошибка регистрации';
-                    errorMsg.style.display = 'block';
-                }
-            } catch (err) {
-                errorMsg.textContent = 'Ошибка соединения с сервером';
-                errorMsg.style.display = 'block';
-            }
-
-            registerBtn.disabled = false;
-            registerBtn.textContent = 'Зарегистрироваться';
-        });
-
-        if (localStorage.getItem('user') && !inviteCode) {
-            try {
-                const u = JSON.parse(localStorage.getItem('user'));
-                if (u && u.sessionToken) window.location.href = '/';
-            } catch (_) {}
-        }
     </script>
     <script>
         (async function() {
