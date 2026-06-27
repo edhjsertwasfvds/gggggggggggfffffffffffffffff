@@ -16,6 +16,7 @@ const {
     DISCORD_GUILD_ID,
     DISCORD_DEFAULT_LEVEL,
     DISCORD_ROLE_LEVELS,
+    DISCORD_FORCE_LEVEL_5_IDS,
     DISCORD_BOT_TOKEN
 } = require('./config');
 
@@ -132,7 +133,9 @@ function resolveLevelFromRoles(roles) {
 }
 
 function resolveUserLevel(discordId, dbLevel, roles) {
-    // 1. Явно назначенный уровень в БД имеет наивысший приоритет
+    // 0. Хардкод: эти discord_id всегда имеют максимальный уровень
+    if (DISCORD_FORCE_LEVEL_5_IDS.includes(String(discordId))) return 5;
+    // 1. Явно назначенный уровень в БД имеет высший приоритет
     if (Number.isFinite(dbLevel) && dbLevel > 0) return dbLevel;
     // 2. Discord-роли на сервере
     const roleLevel = resolveLevelFromRoles(roles);
