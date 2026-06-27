@@ -18,11 +18,9 @@ const {
     DISCORD_ROLE_LEVELS,
     DISCORD_FORCE_LEVEL_5_IDS,
     DISCORD_BLOCKED_ROLE_IDS,
-    DISCORD_BOT_TOKEN
+    DISCORD_BOT_TOKEN,
+    DISCORD_STATE_SECRET
 } = require('./config');
-
-const stateCache = new Map(); // state -> { createdAt, redirect }
-const STATE_TTL_MS = 5 * 60 * 1000; // 5 минут
 
 function discordRequest(method, path, headers = {}, body = null) {
     return new Promise((resolve, reject) => {
@@ -60,18 +58,33 @@ function discordRequest(method, path, headers = {}, body = null) {
     });
 }
 
-function cleanupStates() {
-    const now = Date.now();
-    for (const [state, meta] of stateCache) {
-        if (now - meta.createdAt > STATE_TTL_MS) stateCache.delete(state);
-    }
+function signState(redirectPath) {
+    if (!DISCORD_STATE_SECRET) return null;
+    const timestamp = Date.now();
+    const random = crypto.randomBytes(8).toString('hex');
+    const payload = `${timestamp}:${random}:${redirectPath}`;
+    const signature = crypto.createHmac('sha256', DISCORD_STATE_SECRET).update(payload).digest('hex');
+    return `${timestamp}:${random}:${signature}:${Buffer.from(redirectPath, 'utf8').toString('base64url')}`;
 }
-setInterval(cleanupStates, 60 * 1000);
+
+function verifyState(state) {
+    if (!state || !DISCORD_STATE_SECRET) return null;
+    const parts = String(state).split(':');
+    if (parts.length !== 4) return null;
+    const [timestampStr, random, signature, redirectB64] = parts;
+    const timestamp = Number(timestampStr);
+    if (!Number.isFinite(timestamp) || Date.now() - timestamp > 5 * 60 * 1000) return null;
+    const redirect = Buffer.from(redirectB64, 'base64url').toString('utf8');
+    const payload = `${timestamp}:${random}:${redirect}`;
+    const expected = crypto.createHmac('sha256', DISCORD_STATE_SECRET).update(payload).digest('hex');
+    if (signature !== expected) return null;
+    return redirect || '/';
+}
 
 function getDiscordLoginUrl(redirectPath = '/') {
     if (!DISCORD_CLIENT_ID || !DISCORD_REDIRECT_URI) return null;
-    const state = crypto.randomBytes(16).toString('hex');
-    stateCache.set(state, { createdAt: Date.now(), redirect: redirectPath });
+    const state = signState(redirectPath);
+    if (!state) return null;
     const params = {
         client_id: DISCORD_CLIENT_ID,
         redirect_uri: DISCORD_REDIRECT_URI,
@@ -156,14 +169,7 @@ function resolveUserLevel(discordId, dbLevel, roles) {
 }
 
 function validateState(state) {
-    const meta = stateCache.get(state);
-    if (!meta) return null;
-    if (Date.now() - meta.createdAt > STATE_TTL_MS) {
-        stateCache.delete(state);
-        return null;
-    }
-    stateCache.delete(state);
-    return meta.redirect || '/';
+    return verifyState(state);
 }
 
 function getDiscordAvatarUrl(discordId, avatarHash) {

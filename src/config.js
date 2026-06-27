@@ -1,4 +1,5 @@
 const path = require('path');
+const crypto = require('crypto');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const PORT = process.env.PORT || 3000;
@@ -38,6 +39,7 @@ const DISCORD_BLOCKED_ROLE_IDS = (() => {
     const raw = process.env.DISCORD_BLOCKED_ROLE_IDS || '';
     return raw.split(',').map((s) => s.trim()).filter(Boolean);
 })();
+const DISCORD_STATE_SECRET = process.env.DISCORD_STATE_SECRET || process.env.SITE_API_SECRET || crypto.randomBytes(32).toString('hex');
 const PUNISHMENTS_ADMIN_STEAM_ID = process.env.PUNISHMENTS_ADMIN_STEAM_ID || '';
 const FEAR_PUNISHMENTS_ADMIN_IDS = (process.env.FEAR_PUNISHMENTS_ADMIN_IDS || '')
     .split(',')
@@ -90,6 +92,7 @@ module.exports = {
     DISCORD_ROLE_LEVELS,
     DISCORD_FORCE_LEVEL_5_IDS,
     DISCORD_BLOCKED_ROLE_IDS,
+    DISCORD_STATE_SECRET,
     PUNISHMENTS_ADMIN_STEAM_ID,
     FEAR_PUNISHMENTS_ADMIN_IDS,
     FEAR_PUNISHMENTS_REFRESH_HOURS,
