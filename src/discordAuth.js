@@ -102,14 +102,14 @@ function getDiscordLoginUrl(redirectPath = '/') {
 
 async function exchangeCode(code) {
     const body = querystring.stringify({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
         grant_type: 'authorization_code',
         code,
         redirect_uri: DISCORD_REDIRECT_URI
     });
+    const auth = Buffer.from(`${DISCORD_CLIENT_ID}:${DISCORD_CLIENT_SECRET}`).toString('base64');
     const res = await discordRequest('POST', '/api/oauth2/token', {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${auth}`
     }, body);
     if (res.statusCode !== 200 || !res.body?.access_token) {
         throw new Error(`Discord token error ${res.statusCode}: ${JSON.stringify(res.body)}`);
