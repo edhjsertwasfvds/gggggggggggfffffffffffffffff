@@ -70,7 +70,7 @@ func (h *UserHandler) GetStaff(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if len(result) == 0 {
+	if len(result) == 0 && h.db != nil {
 		staff, err := h.db.GetStaffFromFile()
 		if err == nil {
 			for _, s := range staff {
@@ -103,6 +103,14 @@ func (h *UserHandler) GetStaffByGroup(w http.ResponseWriter, r *http.Request) {
 	group := r.URL.Query().Get("group")
 	if group == "" {
 		http.Error(w, `{"error":"group parameter required"}`, http.StatusBadRequest)
+		return
+	}
+
+	if h.db == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"data":    []interface{}{},
+		})
 		return
 	}
 
@@ -179,7 +187,7 @@ func (h *UserHandler) GetDashboardStats(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	if total == 0 {
+	if total == 0 && h.db != nil {
 		staff, err := h.db.GetStaffFromFile()
 		if err == nil {
 			total = len(staff)
@@ -210,6 +218,14 @@ func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 			limit = l
 		}
+	}
+
+	if h.db == nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"data":    []interface{}{},
+		})
+		return
 	}
 
 	users, err := h.db.GetAllUsers()

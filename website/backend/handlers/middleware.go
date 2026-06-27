@@ -60,6 +60,12 @@ func ParseJWT(cfg *config.Config, tokenStr string) (*JWTClaims, error) {
 }
 
 func AuthMiddleware(cfg *config.Config, next http.Handler) http.Handler {
+	if cfg == nil {
+		panic("AuthMiddleware: cfg is nil")
+	}
+	if next == nil {
+		panic("AuthMiddleware: next handler is nil")
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
