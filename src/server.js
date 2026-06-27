@@ -1439,6 +1439,41 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // Простой тест валидности Discord client credentials
+    if (req.url === '/api/debug/discord-creds-test' && req.method === 'GET') {
+        try {
+            const basicAuth = Buffer.from(
+                `${config.DISCORD_CLIENT_ID}:${config.DISCORD_CLIENT_SECRET}`
+            ).toString('base64');
+            const params = new URLSearchParams();
+            params.append('grant_type', 'authorization_code');
+            params.append('code', 'DUMMY_CODE');
+            params.append('redirect_uri', config.DISCORD_REDIRECT_URI);
+            const response = await fetch('https://discord.com/api/oauth2/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Basic ${basicAuth}`
+                },
+                body: params.toString()
+            });
+            const status = response.status;
+            const text = await response.text();
+            let parsed = null;
+            try { parsed = JSON.parse(text); } catch (e) {}
+            sendJson(res, 200, {
+                status,
+                discordResponse: parsed || text,
+                note: status === 400 && parsed && parsed.error === 'invalid_grant'
+                    ? 'client_id + client_secret OK (Discord принял авторизацию, только code невалиден)'
+                    : 'Discord отверг client_id/client_secret или произошла другая ошибка'
+            });
+        } catch (err) {
+            sendJson(res, 500, { error: err.message });
+        }
+        return;
+    }
+
     // Discord OAuth: редирект на Discord
     if (req.url === '/api/auth/discord' && req.method === 'GET') {
         const redirect = discordAuth.getDiscordLoginUrl('/dashboard');
