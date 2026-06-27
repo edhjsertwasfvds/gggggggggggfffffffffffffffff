@@ -24,7 +24,8 @@ const {
 
 function discordRequest(method, path, headers = {}, body = null) {
     return new Promise((resolve, reject) => {
-        const payload = body ? JSON.stringify(body) : null;
+        // Если body уже строка (например, form-urlencoded), отправляем как есть.
+        const payload = body ? (typeof body === 'string' ? body : JSON.stringify(body)) : null;
         const qs = body && method === 'POST' ? null : querystring.stringify(body);
         const fullPath = (method === 'GET' && qs) ? `${path}?${qs}` : path;
         const req = https.request({
@@ -105,8 +106,7 @@ async function exchangeCode(code) {
         client_secret: DISCORD_CLIENT_SECRET,
         grant_type: 'authorization_code',
         code,
-        redirect_uri: DISCORD_REDIRECT_URI,
-        scope: 'identify guilds.members.read'
+        redirect_uri: DISCORD_REDIRECT_URI
     });
     const res = await discordRequest('POST', '/api/oauth2/token', {
         'Content-Type': 'application/x-www-form-urlencoded'
