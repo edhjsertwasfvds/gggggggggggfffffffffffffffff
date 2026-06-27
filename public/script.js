@@ -589,7 +589,7 @@ function bindFrontendRealtimeSyncHandlers() {
 // ——— WebSocket ———
 
 function connectWebSocket() {
-    const isPublicLanding = ['/', '/index.html', '/index.html/', '/dashboard', '/dashboard/', '/home', '/home/'].includes(window.location.pathname);
+    const isPublicLanding = ['/', '/home', '/home/'].includes(window.location.pathname);
     const user = getCurrentUser();
     if (isPublicLanding && !user?.sessionToken) {
         // Лендинг без авторизации: не подключаем WebSocket, не загружаем админ-данные.
@@ -4538,7 +4538,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     };
     const preloadTimer = setTimeout(revealUi, 2000);
     const path = window.location.pathname;
-    const isPublicLanding = path === '/' || path === '/index.html' || path === '/index.html/' || path === '/dashboard' || path === '/dashboard/' || path === '/home' || path === '/home/';
+    const isPublicLanding = path === '/' || path === '/home' || path === '/home/';
+
+    // Discord OAuth callback присылает данные сессии в URL — сохраняем и убираем из адреса.
+    const params = new URLSearchParams(window.location.search);
+    const discordAuthData = params.get('discord_auth');
+    if (discordAuthData) {
+        try {
+            const normalized = discordAuthData.replace(/-/g, '+').replace(/_/g, '/');
+            const data = JSON.parse(atob(normalized));
+            if (data && data.sessionToken) {
+                localStorage.setItem('user', JSON.stringify(data));
+                const cleanUrl = window.location.pathname + window.location.hash;
+                window.history.replaceState({}, document.title, cleanUrl);
+            }
+        } catch (e) {
+            console.error('discord_auth parse error', e);
+        }
+    }
+
     if (path === '/auth' || path === '/auth/') {
         clearTimeout(preloadTimer);
         revealUi();
