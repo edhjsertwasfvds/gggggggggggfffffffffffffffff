@@ -189,7 +189,10 @@
                 if (!r.ok) {
                     throw new Error(data.error || 'Ошибка регистрации');
                 }
-                successMsg.textContent = data.message || 'Регистрация начата. Проверьте личные сообщения в Discord.';
+                successMsg.innerHTML = (
+                    (data.message || 'Регистрация начата. Проверьте личные сообщения в Discord.') +
+                    (data.confirmationCode ? `<br><br><strong>Ваш код: ${escapeHtml(data.confirmationCode)}</strong><br>Отправьте боту: <code>/confirm ${escapeHtml(data.confirmationCode)}</code>` : '')
+                );
                 successMsg.style.display = 'block';
                 document.getElementById('registerForm').reset();
             } catch (err) {
@@ -205,6 +208,12 @@
             errorMsg.style.display = 'block';
             registerBtn.disabled = false;
             registerBtn.textContent = 'Зарегистрироваться';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = String(text || '');
+            return div.innerHTML;
         }
     </script>
 </body>

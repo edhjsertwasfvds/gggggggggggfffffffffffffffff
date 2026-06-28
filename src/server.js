@@ -1607,14 +1607,18 @@ const server = http.createServer(async (req, res) => {
                     return;
                 }
                 const userId = await db.createPendingUser(username, password, username, steamId);
-                await db.createBotTask('resolve_discord_by_steam', { userId, steamId });
-                await db.logLoginEvent(userId, 'register_started', { username, steamId }, { ip: clientIp, userAgent: req.headers['user-agent'] });
-                console.log(`[Auth] Регистрация начата: ${username} (id=${userId}, steamId=${steamId})`);
+                const confirmationCode = crypto.randomBytes(8).toString('hex').toUpperCase().slice(0, 12);
+                const expiresAt = Date.now() + 30 * 60 * 1000;
+                await db.createRegistrationConfirmation(userId, 'pending', confirmationCode, expiresAt);
+                await db.createBotTask('send_registration_dm', { userId, steamId, username, confirmationCode });
+                await db.logLoginEvent(userId, 'register_started', { username, steamId, confirmationCode }, { ip: clientIp, userAgent: req.headers['user-agent'] });
+                console.log(`[Auth] Регистрация начата: ${username} (id=${userId}, steamId=${steamId}, code=${confirmationCode})`);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     success: true,
                     message: 'Регистрация начата. Для активации аккаунта подтвердите её в Discord (личное сообщение от бота).',
-                    userId
+                    userId,
+                    confirmationCode
                 }));
             } catch (err) {
                 if (err.message && err.message.includes('UNIQUE')) {
