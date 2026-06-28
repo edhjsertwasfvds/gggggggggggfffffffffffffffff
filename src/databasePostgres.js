@@ -161,10 +161,29 @@ async function initDatabase() {
             level INTEGER NOT NULL DEFAULT 1,
             status TEXT NOT NULL DEFAULT 'pending',
             created_at BIGINT NOT NULL,
+            last_login BIGINT DEFAULT 0,
             steam_id TEXT UNIQUE,
             launcher_api_key TEXT UNIQUE,
             discord_id TEXT UNIQUE
         );
+        -- Убедимся, что last_login существует и не мешает INSERT в старых схемах.
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'last_login'
+            ) THEN
+                ALTER TABLE panel_users ADD COLUMN last_login BIGINT DEFAULT 0;
+            END IF;
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'last_login' AND is_nullable = 'NO'
+            ) THEN
+                ALTER TABLE panel_users ALTER COLUMN last_login DROP NOT NULL;
+                ALTER TABLE panel_users ALTER COLUMN last_login SET DEFAULT 0;
+            END IF;
+        END
+        $$;
         DO $$
         BEGIN
             IF NOT EXISTS (
@@ -521,7 +540,7 @@ async function initDatabase() {
         if (rows.length === 0) {
             const hash = bcrypt.hashSync(u.password, 10);
             await pool.query(
-                'INSERT INTO panel_users (username, password_hash, display_name, level, created_at) VALUES ($1,$2,$3,$4,$5)',
+                'INSERT INTO panel_users (username, password_hash, display_name, level, created_at, last_login) VALUES ($1,$2,$3,$4,$5,0)',
                 [u.username, hash, u.displayName || u.username, u.level, Date.now()]
             );
             console.log(`[Auth] Пользователь "${u.username}" создан (level=${u.level}) [PostgreSQL]`);
@@ -962,7 +981,7 @@ async function getAllSettings() {
 async function createUser(username, password, displayName, level = 1, status = 'active', steamId = null) {
     const hash = bcrypt.hashSync(password, 10);
     const { rows } = await poolQuery(
-        'INSERT INTO panel_users (username, password_hash, display_name, level, status, created_at, steam_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+        'INSERT INTO panel_users (username, password_hash, display_name, level, status, created_at, steam_id, last_login) VALUES ($1,$2,$3,$4,$5,$6,$7,0) RETURNING id',
         [username, hash, displayName || username, level, status, Date.now(), steamId]
     );
     const newId = rows[0].id;
@@ -1021,7 +1040,7 @@ async function createOrUpdateDiscordUser(discordId, username, displayName, level
     const tempPassword = crypto.randomBytes(16).toString('hex');
     const hash = bcrypt.hashSync(tempPassword, 10);
     const { rows } = await poolQuery(
-        'INSERT INTO panel_users (username, password_hash, display_name, level, created_at, steam_id, discord_id) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id',
+        'INSERT INTO panel_users (username, password_hash, display_name, level, created_at, steam_id, discord_id, last_login) VALUES ($1,$2,$3,$4,$5,$6,$7,0) RETURNING id',
         [safeUsername, hash, safeDisplayName, level, now, null, discordId]
     );
     const newId = rows[0].id;
@@ -1139,7 +1158,7 @@ async function restoreUsersFromEnv() {
         if (rows.length === 0) {
             const hash = bcrypt.hashSync(u.password, 10);
             await poolQuery(
-                'INSERT INTO panel_users (username, password_hash, display_name, level, created_at) VALUES ($1,$2,$3,$4,$5)',
+                'INSERT INTO panel_users (username, password_hash, display_name, level, created_at, last_login) VALUES ($1,$2,$3,$4,$5,0)',
                 [u.username, hash, u.displayName || u.username, u.level, Date.now()]
             );
             restored++;
