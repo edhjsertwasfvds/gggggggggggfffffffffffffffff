@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/images/fearsearch-logo.webp" type="image/webp">
+    <title>Сессии — FearSearch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #09090b; color: #fff;
+            padding: 32px;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { font-size: 24px; margin-bottom: 8px; }
+        .subtitle { color: #6b7280; margin-bottom: 24px; }
+        .card {
+            background: rgba(22, 22, 26, 0.95);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .card h2 { font-size: 16px; margin-bottom: 16px; color: #e5e7eb; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        th { color: #9ca3af; font-weight: 500; }
+        td { color: #d1d5db; }
+        .current { color: #4ade80; }
+        .btn {
+            padding: 6px 12px;
+            background: #ef4444; color: #fff;
+            border: none; border-radius: 6px;
+            font-size: 12px; cursor: pointer;
+        }
+        .btn:hover { background: #dc2626; }
+        .btn:disabled { opacity: 0.5; }
+        .btn-primary {
+            background: #6366f1;
+            margin-bottom: 16px;
+        }
+        .btn-primary:hover { background: #4f46e5; }
+        .empty { color: #6b7280; padding: 20px 0; text-align: center; }
+        .back { display: inline-block; margin-bottom: 20px; color: #818cf8; text-decoration: none; }
+        .back:hover { text-decoration: underline; }
+        .error { color: #f87171; margin-bottom: 16px; }
+        .success { color: #4ade80; margin-bottom: 16px; }
+        .admin-section { margin-top: 24px; }
+        .admin-section input {
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px; color: #fff;
+            margin-right: 8px;
+        }
+        .admin-section button {
+            padding: 8px 14px;
+            background: #6366f1; color: #fff;
+            border: none; border-radius: 6px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/dashboard" class="back">← Назад в дашборд</a>
+        <h1>Управление сессиями</h1>
+        <p class="subtitle">Активные входы и история</p>
+
+        <div id="statusMsg"></div>
+
+        <div class="card">
+            <h2>Мои сессии</h2>
+            <button class="btn btn-primary" id="logoutAllBtn">Выйти со всех устройств</button>
+            <div id="mySessions"></div>
+        </div>
+
+        <div class="card">
+            <h2>История входов</h2>
+            <div id="myLogs"></div>
+        </div>
+
+        <div class="card admin-section" id="adminSection" style="display:none">
+            <h2>Администрирование</h2>
+            <p class="subtitle">Просмотр сессий других пользователей (только LVL 4+)</p>
+            <div>
+                <input type="number" id="targetUserId" placeholder="User ID">
+                <button id="loadUserBtn">Загрузить сессии</button>
+            </div>
+            <div id="adminResults" style="margin-top:16px"></div>
+        </div>
+    </div>
+
+    <script>
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const token = user.sessionToken || localStorage.getItem('sessionToken');
+        const statusMsg = document.getElementById('statusMsg');
+
+        if (!token) {
+            window.location.href = '/auth.html';
+        }
+
+        if ((user.level || 0) >= 4) {
+            document.getElementById('adminSection').style.display = 'block';
+        }
+
+        async function api(path, method = 'GET', body = null) {
+            const opts = {
+                method,
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                }
+            };
+            if (body) opts.body = JSON.stringify(body);
+            const r = await fetch(path, opts);
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({}));
+                throw new Error(err.error || 'HTTP ' + r.status);
+            }
+            return r.json();
+        }
+
+        function formatTime(ms) {
+            if (!ms) return '—';
+            return new Date(Number(ms)).toLocaleString('ru-RU');
+        }
+
+        function renderSessions(container, sessions, showRevoke = true) {
+            if (!sessions || sessions.length === 0) {
+                container.innerHTML = '<div class="empty">Нет активных сессий</div>';
+                return;
+            }
+            let html = '<table><tr><th>Устройство</th><th>Браузер</th><th>IP</th><th>Гео</th><th>Последняя активность</th><th>Создана</th>' + (showRevoke ? '<th></th>' : '') + '</tr>';
+            for (const s of sessions) {
+                const isCurrent = s.token === token;
+                const geo = [s.country, s.city].filter(Boolean).join(', ') || '—';
+                html += `<tr>
+                    <td>${s.device || '—'}${isCurrent ? ' <span class="current">(текущая)</span>' : ''}</td>
+                    <td>${s.browser || '—'}</td>
+                    <td>${s.ipAddress || '—'}</td>
+                    <td>${geo}</td>
+                    <td>${formatTime(s.lastActivity)}</td>
+                    <td>${formatTime(s.createdAt)}</td>
+                    ${showRevoke ? `<td><button class="btn" onclick="revoke('${s.token}')">Отозвать</button></td>` : ''}
+                </tr>`;
+            }
+            html += '</table>';
+            container.innerHTML = html;
+        }
+
+        function renderLogs(container, logs) {
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div class="empty">Нет записей</div>';
+                return;
+            }
+            let html = '<table><tr><th>Действие</th><th>IP</th><th>Гео</th><th>Устройство</th><th>Время</th></tr>';
+            for (const l of logs) {
+                const geo = [l.country, l.city].filter(Boolean).join(', ') || '—';
+                const actionMap = {
+                    login: 'Вход',
+                    logout: 'Выход',
+                    logout_all: 'Выход со всех',
+                    failed_login: 'Неудачный вход',
+                    blocked_login: 'Блокированный вход',
+                    register_started: 'Начата регистрация',
+                    registration_confirmed: 'Регистрация подтверждена',
+                    confirmation_sent: 'Отправлено подтверждение',
+                    confirmation_dm_failed: 'Не удалось отправить DM',
+                    registration_failed: 'Регистрация не удалась',
+                    revoke_session: 'Отозвана сессия'
+                };
+                html += `<tr>
+                    <td>${actionMap[l.action] || l.action}</td>
+                    <td>${l.ip_address || '—'}</td>
+                    <td>${geo}</td>
+                    <td>${l.device || '—'}</td>
+                    <td>${formatTime(l.created_at)}</td>
+                </tr>`;
+            }
+            html += '</table>';
+            container.innerHTML = html;
+        }
+
+        async function loadMySessions() {
+            try {
+                const data = await api('/api/auth/sessions');
+                renderSessions(document.getElementById('mySessions'), data.sessions);
+                renderLogs(document.getElementById('myLogs'), data.logs);
+            } catch (err) {
+                document.getElementById('mySessions').innerHTML = `<div class="error">${err.message}</div>`;
+            }
+        }
+
+        window.revoke = async function(sessionToken) {
+            if (!confirm('Отозвать эту сессию?')) return;
+            try {
+                await api('/api/auth/sessions/revoke/' + encodeURIComponent(sessionToken), 'POST');
+                statusMsg.innerHTML = '<div class="success">Сессия отозвана</div>';
+                await loadMySessions();
+            } catch (err) {
+                statusMsg.innerHTML = `<div class="error">${err.message}</div>`;
+            }
+        };
+
+        document.getElementById('logoutAllBtn').addEventListener('click', async () => {
+            if (!confirm('Выйти со всех устройств, кроме текущего?')) return;
+            try {
+                await api('/api/auth/logout-all', 'POST');
+                statusMsg.innerHTML = '<div class="success">Вы вышли со всех других устройств</div>';
+                await loadMySessions();
+            } catch (err) {
+                statusMsg.innerHTML = `<div class="error">${err.message}</div>`;
+            }
+        });
+
+        document.getElementById('loadUserBtn').addEventListener('click', async () => {
+            const id = document.getElementById('targetUserId').value;
+            if (!id) return;
+            const container = document.getElementById('adminResults');
+            container.innerHTML = 'Загрузка...';
+            try {
+                const data = await api('/api/auth/sessions/user/' + id);
+                let html = `<h3>Пользователь ${data.user ? data.user.username : id}</h3>`;
+                const sessionsDiv = document.createElement('div');
+                const logsDiv = document.createElement('div');
+                container.innerHTML = html;
+                container.appendChild(sessionsDiv);
+                container.appendChild(document.createElement('h3')).textContent = 'История входов';
+                container.appendChild(logsDiv);
+                renderSessions(sessionsDiv, data.sessions);
+                renderLogs(logsDiv, data.logs);
+            } catch (err) {
+                container.innerHTML = `<div class="error">${err.message}</div>`;
+            }
+        });
+
+        loadMySessions();
+    </script>
+</body>
+</html>

@@ -1536,7 +1536,7 @@ const server = http.createServer(async (req, res) => {
                 res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': cookie });
                 res.end(JSON.stringify({
                     success: true,
-                    user: { id: user.id, username: user.username, displayName: user.displayName, level: user.level, steamId: user.steamId || null, discordId: user.discordId || null },
+                    user: { id: user.id, username: user.username, displayName: user.displayName, level: user.level, steamId: user.steamId || null, discordId: user.discordId || null, sessionToken: session.token },
                     sessionToken: session.token,
                     expiresAt: session.expiresAt
                 }));

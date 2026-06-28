@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="/images/fearsearch-logo.webp" type="image/webp">
-    <title>Вход — FearSearch</title>
+    <title>Регистрация — FearSearch</title>
     <script>
         (function () {
             try {
@@ -30,25 +30,15 @@
             justify-content: center;
             padding: 24px;
         }
-        html.theme-midnight body { background: #05070d; }
-        html.theme-indigo body { background: #0b1020; }
-        html.theme-emerald body { background: #07120f; }
-        html.theme-crimson body { background: #160b10; }
-        html.theme-graphite body { background: #0f1116; }
         .panel {
             background: rgba(22, 22, 26, 0.95);
             border: 1px solid rgba(255, 255, 255, 0.08);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
             border-radius: 16px;
             padding: 36px 32px 32px;
-            max-width: 380px;
+            max-width: 420px;
             width: 100%;
         }
-        html.theme-midnight .panel { background: rgba(14, 16, 24, 0.95); border-color: rgba(148,163,184,.16); }
-        html.theme-indigo .panel { background: rgba(21, 29, 56, 0.92); border-color: rgba(99,102,241,.22); }
-        html.theme-emerald .panel { background: rgba(14, 30, 25, 0.93); border-color: rgba(16,185,129,.22); }
-        html.theme-crimson .panel { background: rgba(36, 18, 24, 0.93); border-color: rgba(244,63,94,.2); }
-        html.theme-graphite .panel { background: rgba(23, 24, 28, 0.93); border-color: rgba(161,161,170,.18); }
         .icon-wrap {
             width: 52px; height: 52px;
             background: rgba(99, 102, 241, 0.15);
@@ -57,15 +47,9 @@
             margin: 0 auto 20px;
         }
         .icon-wrap img { width: 32px; height: 32px; object-fit: contain; }
-        h1 {
-            font-size: 20px; font-weight: 700;
-            text-align: center; margin-bottom: 6px;
-        }
-        .subtitle {
-            font-size: 13px; color: #6b7280;
-            text-align: center; margin-bottom: 24px;
-        }
-        .access-notice {
+        h1 { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 6px; }
+        .subtitle { font-size: 13px; color: #6b7280; text-align: center; margin-bottom: 24px; }
+        .notice {
             background: rgba(99, 102, 241, 0.08);
             border: 1px solid rgba(99, 102, 241, 0.2);
             border-radius: 10px;
@@ -73,13 +57,9 @@
             margin-bottom: 20px;
             font-size: 13px;
             color: #a5b4fc;
-            text-align: center;
             line-height: 1.5;
         }
-        label {
-            display: block; font-size: 13px; font-weight: 500;
-            color: #9ca3af; margin-bottom: 6px;
-        }
+        label { display: block; font-size: 13px; font-weight: 500; color: #9ca3af; margin-bottom: 6px; }
         input {
             width: 100%; padding: 11px 14px;
             background: rgba(255,255,255,0.04);
@@ -102,12 +82,7 @@
         .btn:hover { background: #4f46e5; }
         .btn:active { transform: scale(0.98); }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-secondary {
-            background: transparent;
-            border: 1px solid rgba(255,255,255,0.1);
-            color: #9ca3af;
-            margin-top: 10px;
-        }
+        .btn-secondary { background: transparent; border: 1px solid rgba(255,255,255,0.1); color: #9ca3af; margin-top: 10px; }
         .btn-secondary:hover { background: rgba(255,255,255,0.04); color: #fff; }
         .error-msg {
             background: rgba(239, 68, 68, 0.1);
@@ -125,17 +100,10 @@
             margin-bottom: 16px; display: none;
             text-align: center;
         }
-        .links {
-            margin-top: 18px;
-            display: flex;
-            justify-content: space-between;
-            font-size: 13px;
-        }
-        .links a {
-            color: #818cf8;
-            text-decoration: none;
-        }
+        .links { margin-top: 18px; text-align: center; font-size: 13px; }
+        .links a { color: #818cf8; text-decoration: none; }
         .links a:hover { text-decoration: underline; }
+        .hint { font-size: 12px; color: #6b7280; margin-top: 6px; }
     </style>
 </head>
 <body>
@@ -143,86 +111,101 @@
         <div class="icon-wrap">
             <img src="/images/fearsearch-logo.webp" alt="FearSearch">
         </div>
-        <h1>Вход в систему</h1>
-        <p class="subtitle">Авторизация по логину и паролю</p>
+        <h1>Регистрация</h1>
+        <p class="subtitle">Создание аккаунта стаффа</p>
 
-        <div class="access-notice">
-            Доступ только для стаффа сервера FearProject. Новые аккаунты требуют подтверждения в Discord.
+        <div class="notice">
+            Для регистрации укажите ваш Steam ID. Бот найдёт ваш Discord и отправит в личку сообщение для подтверждения.
         </div>
 
         <div class="error-msg" id="errorMsg"></div>
         <div class="success-msg" id="successMsg"></div>
 
-        <form id="loginForm">
+        <form id="registerForm">
             <div class="field">
                 <label for="username">Логин</label>
-                <input type="text" id="username" name="username" placeholder="Введите логин" autocomplete="username" required>
+                <input type="text" id="username" placeholder="2-32 символа" autocomplete="username" required>
             </div>
             <div class="field">
                 <label for="password">Пароль</label>
-                <input type="password" id="password" name="password" placeholder="Введите пароль" autocomplete="current-password" required>
+                <input type="password" id="password" placeholder="Минимум 6 символов" autocomplete="new-password" required>
             </div>
-            <button type="submit" class="btn" id="loginBtn">Войти</button>
+            <div class="field">
+                <label for="steamId">Steam ID</label>
+                <input type="text" id="steamId" placeholder="76561198xxxxxxxx" required>
+                <div class="hint">Steam ID 64 (начинается с 765611...)</div>
+            </div>
+            <button type="submit" class="btn" id="registerBtn">Зарегистрироваться</button>
         </form>
 
         <div class="links">
-            <a href="/register.html">Регистрация</a>
-            <a href="/">На главную</a>
+            <a href="/auth.html">Уже есть аккаунт? Войти</a>
         </div>
     </div>
 
     <script>
         const errorMsg = document.getElementById('errorMsg');
         const successMsg = document.getElementById('successMsg');
-        const loginBtn = document.getElementById('loginBtn');
+        const registerBtn = document.getElementById('registerBtn');
+
+        // Предзаполнение Steam ID из query параметра (для лаунчера)
         const params = new URLSearchParams(window.location.search);
-        const errorFromUrl = params.get('error');
-        const registered = params.get('registered');
-
-        if (errorFromUrl) {
-            const errorMap = {
-                'oauth_disabled': 'Вход через Discord отключён. Используйте логин и пароль.',
-                'invalid_state': 'Ошибка безопасности. Попробуйте ещё раз.',
-                'session_expired': 'Сессия истекла. Войдите снова.',
-                'unauthorized': 'Требуется авторизация.'
-            };
-            errorMsg.textContent = errorMap[errorFromUrl] || 'Ошибка авторизации';
-            errorMsg.style.display = 'block';
-        }
-        if (registered) {
-            successMsg.textContent = 'Регистрация начата. Подтвердите её в личном сообщении от бота в Discord.';
-            successMsg.style.display = 'block';
+        const steamIdParam = params.get('steamId');
+        if (steamIdParam) {
+            document.getElementById('steamId').value = steamIdParam;
         }
 
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             errorMsg.style.display = 'none';
             successMsg.style.display = 'none';
-            loginBtn.disabled = true;
-            loginBtn.textContent = 'Вход...';
+            registerBtn.disabled = true;
+            registerBtn.textContent = 'Регистрация...';
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const steamId = document.getElementById('steamId').value.trim();
+
+            if (username.length < 2 || username.length > 32) {
+                showError('Логин: 2-32 символа');
+                return;
+            }
+            if (password.length < 6) {
+                showError('Пароль минимум 6 символов');
+                return;
+            }
+            if (!/^765611[0-9]{12}$/.test(steamId)) {
+                showError('Неверный формат Steam ID');
+                return;
+            }
+
             try {
-                const r = await fetch('/api/auth/login', {
+                const r = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        username: document.getElementById('username').value.trim(),
-                        password: document.getElementById('password').value
-                    })
+                    body: JSON.stringify({ username, password, steamId })
                 });
                 const data = await r.json();
                 if (!r.ok) {
-                    throw new Error(data.error || 'Ошибка входа');
+                    throw new Error(data.error || 'Ошибка регистрации');
                 }
-                localStorage.setItem('user', JSON.stringify(data.user));
-                localStorage.setItem('sessionToken', data.sessionToken);
-                window.location.replace('/dashboard');
+                successMsg.textContent = data.message || 'Регистрация начата. Проверьте личные сообщения в Discord.';
+                successMsg.style.display = 'block';
+                document.getElementById('registerForm').reset();
             } catch (err) {
-                errorMsg.textContent = err.message;
-                errorMsg.style.display = 'block';
-                loginBtn.disabled = false;
-                loginBtn.textContent = 'Войти';
+                showError(err.message);
+            } finally {
+                registerBtn.disabled = false;
+                registerBtn.textContent = 'Зарегистрироваться';
             }
         });
+
+        function showError(msg) {
+            errorMsg.textContent = msg;
+            errorMsg.style.display = 'block';
+            registerBtn.disabled = false;
+            registerBtn.textContent = 'Зарегистрироваться';
+        }
     </script>
 </body>
 </html>
