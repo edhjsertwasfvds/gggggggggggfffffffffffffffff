@@ -960,5 +960,74 @@ module.exports = {
     getActivityHeatmap, getActivityByServer,
     replaceFearPunishments, getFearPunishmentsStats, getFearPunishmentsByAdmin,
     getStaffPunishmentsDaily, getPunishmentsTrend, getPunishmentsMonthComparison, getTicketsMonthComparison,
-    getVdfHistoryChecks, getVdfHistoryDetails, getVdfContentByCheckId, saveVdfHistory
+    getVdfHistoryChecks, getVdfHistoryDetails, getVdfContentByCheckId, saveVdfHistory,
+    getLinkedSteamAccounts, getAllLinkedGroups
 };
+
+function getLinkedSteamAccounts(steamId) {
+    try {
+        if (!steamId) return null;
+        const directRows = db.prepare(`
+            SELECT ca.config_hash, ch.filename, ch.created_at
+            FROM config_accounts ca
+            JOIN config_hashes ch ON ch.config_hash = ca.config_hash
+            WHERE ca.steamid = ?
+            ORDER BY ch.created_at DESC
+        `).all(steamId);
+        if (!directRows || directRows.length === 0) return { steamId, linked: [] };
+        const hashes = directRows.map(r => r.config_hash);
+        const placeholders = hashes.map(() => '?').join(',');
+        const linkedRows = db.prepare(`
+            SELECT DISTINCT ca2.steamid, ch.config_hash, ch.filename, ch.created_at
+            FROM config_accounts ca2
+            JOIN config_hashes ch ON ch.config_hash = ca2.config_hash
+            WHERE ca2.config_hash IN (${placeholders}) AND ca2.steamid <> ?
+            ORDER BY ch.created_at DESC
+        `).all(...hashes, steamId);
+        const seen = new Set();
+        const linked = [];
+        for (const r of linkedRows || []) {
+            if (seen.has(r.steamid)) continue;
+            seen.add(r.steamid);
+            linked.push({
+                steamId: r.steamid,
+                configHash: r.config_hash,
+                filename: r.filename,
+                seenAt: r.created_at ? String(r.created_at) : null
+            });
+        }
+        return { steamId, linked };
+    } catch (e) {
+        console.error('[panelSqlite] getLinkedSteamAccounts error:', e && e.message);
+        return { steamId, linked: [], error: e && e.message };
+    }
+}
+
+function getAllLinkedGroups(limit = 100, offset = 0) {
+    try {
+        const groupRows = db.prepare(`
+            SELECT ca.config_hash, ch.filename, ch.created_at, COUNT(*) AS account_count
+            FROM config_accounts ca
+            JOIN config_hashes ch ON ch.config_hash = ca.config_hash
+            GROUP BY ca.config_hash
+            HAVING account_count > 1
+            ORDER BY ch.created_at DESC
+            LIMIT ? OFFSET ?
+        `).all(limit, offset);
+        const result = [];
+        for (const g of groupRows || []) {
+            const accounts = db.prepare('SELECT steamid FROM config_accounts WHERE config_hash = ?').all(g.config_hash);
+            result.push({
+                configHash: g.config_hash,
+                filename: g.filename,
+                createdAt: g.created_at ? String(g.created_at) : null,
+                accountCount: g.account_count,
+                steamIds: accounts.map(a => a.steamid)
+            });
+        }
+        return result;
+    } catch (e) {
+        console.error('[panelSqlite] getAllLinkedGroups error:', e && e.message);
+        return [];
+    }
+}

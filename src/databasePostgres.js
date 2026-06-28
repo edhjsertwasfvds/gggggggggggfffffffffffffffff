@@ -1753,5 +1753,76 @@ module.exports = {
     getPendingBotTasks,
     updateBotTask,
     getRegistrationStatus,
-    getSessionsByUserId
+    getSessionsByUserId,
+    getLinkedSteamAccounts,
+    getAllLinkedGroups
 };
+
+async function getLinkedSteamAccounts(steamId) {
+    try {
+        if (!steamId) return null;
+        const { rows: directRows } = await poolQuery(`
+            SELECT ca.config_hash, ch.filename, ch.created_at
+            FROM config_accounts ca
+            JOIN config_hashes ch ON ch.config_hash = ca.config_hash
+            WHERE ca.steamid = $1
+            ORDER BY ch.created_at DESC
+        `, [steamId]);
+        if (!directRows || directRows.length === 0) return { steamId, linked: [] };
+        const hashes = directRows.map(r => r.config_hash);
+        const { rows: linkedRows } = await poolQuery(`
+            SELECT DISTINCT ca2.steamid, ch.config_hash, ch.filename, ch.created_at
+            FROM config_accounts ca2
+            JOIN config_hashes ch ON ch.config_hash = ca2.config_hash
+            WHERE ca2.config_hash = ANY($1) AND ca2.steamid <> $2
+            ORDER BY ch.created_at DESC
+        `, [hashes, steamId]);
+        const seen = new Set();
+        const linked = [];
+        for (const r of linkedRows || []) {
+            if (seen.has(r.steamid)) continue;
+            seen.add(r.steamid);
+            linked.push({
+                steamId: r.steamid,
+                configHash: r.config_hash,
+                filename: r.filename,
+                seenAt: r.created_at ? (r.created_at.toISOString ? r.created_at.toISOString() : String(r.created_at)) : null
+            });
+        }
+        return { steamId, linked };
+    } catch (e) {
+        console.error('[panelPg] getLinkedSteamAccounts error:', e && e.message);
+        return { steamId, linked: [], error: e && e.message };
+    }
+}
+
+async function getAllLinkedGroups(limit = 100, offset = 0) {
+    try {
+        const { rows: groupRows } = await poolQuery(`
+            SELECT ca.config_hash, ch.filename, ch.created_at, COUNT(*)::int AS account_count
+            FROM config_accounts ca
+            JOIN config_hashes ch ON ch.config_hash = ca.config_hash
+            GROUP BY ca.config_hash, ch.filename, ch.created_at
+            HAVING COUNT(*) > 1
+            ORDER BY ch.created_at DESC
+            LIMIT $1 OFFSET $2
+        `, [limit, offset]);
+        const result = [];
+        for (const g of groupRows || []) {
+            const { rows: accounts } = await poolQuery(`
+                SELECT steamid FROM config_accounts WHERE config_hash = $1
+            `, [g.config_hash]);
+            result.push({
+                configHash: g.config_hash,
+                filename: g.filename,
+                createdAt: g.created_at ? (g.created_at.toISOString ? g.created_at.toISOString() : String(g.created_at)) : null,
+                accountCount: g.account_count,
+                steamIds: accounts.map(a => a.steamid)
+            });
+        }
+        return result;
+    } catch (e) {
+        console.error('[panelPg] getAllLinkedGroups error:', e && e.message);
+        return [];
+    }
+}

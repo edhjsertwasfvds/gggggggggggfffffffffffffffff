@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/images/iconhtml.png" type="image/png">
+    <title>Обходники — FearSearch</title>
+    <script>
+        (function () {
+            try {
+                var raw = localStorage.getItem('localUiSettings');
+                if (!raw) return;
+                var s = JSON.parse(raw);
+                var t = s && s.theme;
+                if (!t || t === 'dark') return;
+                document.documentElement.classList.add('theme-' + t);
+            } catch (_) {}
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { color-scheme: dark; }
+        body { font-family: 'Inter', sans-serif; background-color: #09090b; }
+        .glass-panel {
+            background: rgba(22, 22, 26, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        .grid-bg {
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        .custom-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(99, 102, 241, 0.45) rgba(255, 255, 255, 0.03);
+        }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.03); border-radius: 999px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.5); border-radius: 999px; }
+        .level-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 8px;
+            font-size: 13px; font-weight: 700;
+        }
+    </style>
+</head>
+<body class="bg-[#09090b] text-white min-h-screen">
+
+    <div class="fixed inset-0 pointer-events-none z-0">
+        <div class="absolute inset-0 grid-bg"></div>
+        <div class="absolute -top-[200px] -left-[200px] w-[600px] h-[600px] bg-[#5865F2] rounded-full blur-[120px] opacity-[0.07]"></div>
+    </div>
+
+    <main class="relative z-10 container mx-auto px-6 py-12">
+        <header class="flex items-center justify-between mb-8 flex-wrap gap-4">
+            <div class="flex items-center gap-4">
+                <a href="/dashboard" class="w-12 h-12 glass-panel rounded-xl flex items-center justify-center hover:bg-white/[0.05] transition-colors">
+                    <i class="ph ph-arrow-left text-white text-xl"></i>
+                </a>
+                <div>
+                    <h1 class="text-3xl font-bold text-white">Обходники</h1>
+                    <p class="text-gray-400 text-sm">Аккаунты с одинаковыми конфигами / VDF</p>
+                </div>
+            </div>
+            <div id="userInfo" class="glass-panel px-4 py-2 rounded-xl flex items-center gap-3">
+                <span id="userName" class="text-white font-semibold"></span>
+                <span id="userLevel" class="level-badge bg-indigo-500/20 text-indigo-400"></span>
+            </div>
+        </header>
+
+        <section class="glass-panel p-6 rounded-2xl mb-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 bg-rose-500/10 rounded-xl flex items-center justify-center">
+                    <i class="ph ph-user-circle-minus text-rose-400 text-xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-white">Группы связанных SteamID</h2>
+                <button onclick="loadGroups()" class="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-white/5 text-gray-300 hover:bg-white/10 flex items-center gap-2">
+                    <i class="ph ph-arrows-clockwise"></i> Обновить
+                </button>
+            </div>
+            <div id="groupsList" class="space-y-3 max-h-[700px] overflow-y-auto pr-1 custom-scroll"></div>
+            <div id="groupsLoading" class="text-gray-500 text-sm py-4">Загрузка...</div>
+        </section>
+
+        <section class="glass-panel p-6 rounded-2xl">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 bg-cyan-500/10 rounded-xl flex items-center justify-center">
+                    <i class="ph ph-magnifying-glass text-cyan-400 text-xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-white">Поиск по SteamID</h2>
+            </div>
+            <div class="flex items-center gap-2 mb-4">
+                <input id="searchSteamId" type="text" placeholder="Введите SteamID" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-cyan-500 flex-1">
+                <button onclick="searchBySteamId()" class="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 rounded-lg font-semibold transition-colors text-sm">Найти связанные</button>
+            </div>
+            <div id="searchResults"></div>
+        </section>
+    </main>
+
+    <script>
+        let currentUserLevel = 0;
+        let sessionToken = '';
+
+        function authHeaders() {
+            return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessionToken };
+        }
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+
+        async function loadGroups() {
+            const list = document.getElementById('groupsList');
+            const loading = document.getElementById('groupsLoading');
+            list.innerHTML = '';
+            loading.classList.remove('hidden');
+            try {
+                const res = await fetch('/api/linked-accounts', { headers: authHeaders() });
+                if (!res.ok) {
+                    list.innerHTML = '<p class="text-gray-500 text-sm">Ошибка загрузки</p>';
+                    return;
+                }
+                const { groups } = await res.json();
+                if (!groups || groups.length === 0) {
+                    list.innerHTML = '<p class="text-gray-500 text-sm">Нет данных. Выполните проверку VDF в чекере — группы сформируются автоматически.</p>';
+                    return;
+                }
+                list.innerHTML = groups.map(g => `
+                    <div class="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                        <div class="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                            <div class="text-sm font-semibold text-white">${esc(g.filename || 'VDF')}</div>
+                            <div class="text-xs text-gray-500">${g.accountCount} акк. • ${g.createdAt ? new Date(g.createdAt).toLocaleString('ru-RU') : '—'}</div>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            ${g.steamIds.map(sid => `
+                                <a href="https://steamcommunity.com/profiles/${sid}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs transition-colors">
+                                    <i class="ph ph-steam-logo"></i> ${sid}
+                                </a>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                console.error('loadGroups error:', e);
+                list.innerHTML = '<p class="text-gray-500 text-sm">Ошибка загрузки</p>';
+            } finally {
+                loading.classList.add('hidden');
+            }
+        }
+
+        async function searchBySteamId() {
+            const input = document.getElementById('searchSteamId');
+            const out = document.getElementById('searchResults');
+            const steamId = input.value.trim();
+            if (!/^\d{5,}$/.test(steamId)) {
+                out.innerHTML = '<p class="text-rose-400 text-sm">Некорректный SteamID</p>';
+                return;
+            }
+            out.innerHTML = '<p class="text-gray-500 text-sm">Загрузка...</p>';
+            try {
+                const res = await fetch('/api/linked-accounts/' + encodeURIComponent(steamId), { headers: authHeaders() });
+                if (!res.ok) {
+                    out.innerHTML = '<p class="text-gray-500 text-sm">Ошибка поиска</p>';
+                    return;
+                }
+                const data = await res.json();
+                if (!data.linked || data.linked.length === 0) {
+                    out.innerHTML = '<p class="text-gray-500 text-sm">Связанные аккаунты не найдены</p>';
+                    return;
+                }
+                out.innerHTML = `
+                    <div class="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                        <div class="text-sm font-semibold text-white mb-3">Связанные с ${esc(data.steamId)}</div>
+                        <div class="flex flex-wrap gap-2">
+                            ${data.linked.map(l => `
+                                <a href="https://steamcommunity.com/profiles/${esc(l.steamId)}" target="_blank" class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs transition-colors" title="${esc(l.filename || '')}">
+                                    <i class="ph ph-steam-logo"></i> ${esc(l.steamId)}
+                                </a>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                console.error('searchBySteamId error:', e);
+                out.innerHTML = '<p class="text-gray-500 text-sm">Ошибка поиска</p>';
+            }
+        }
+
+        async function init() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            sessionToken = user.token || '';
+            if (!sessionToken) {
+                window.location.href = '/auth';
+                return;
+            }
+            try {
+                const res = await fetch('/api/session', { headers: authHeaders() });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) {
+                    localStorage.removeItem('user');
+                    window.location.href = '/auth';
+                    return;
+                }
+                currentUserLevel = data.level || 1;
+                document.getElementById('userName').textContent = data.displayName || data.username || '—';
+                document.getElementById('userLevel').textContent = currentUserLevel;
+                const badgeStyles = {
+                    1: 'bg-gray-500/20 text-gray-400',
+                    2: 'bg-gray-500/20 text-gray-400',
+                    3: 'bg-indigo-500/20 text-indigo-400',
+                    4: 'bg-amber-500/20 text-amber-400',
+                    5: 'bg-rose-500/20 text-rose-400'
+                };
+                document.getElementById('userLevel').className = 'level-badge ' + (badgeStyles[currentUserLevel] || badgeStyles[1]);
+                loadGroups();
+            } catch (e) {
+                console.error('init error', e);
+                window.location.href = '/auth';
+            }
+        }
+
+        document.getElementById('searchSteamId').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchBySteamId();
+        });
+
+        init();
+    </script>
+</body>
+</html>

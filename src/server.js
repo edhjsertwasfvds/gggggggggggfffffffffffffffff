@@ -3521,8 +3521,18 @@ const server = http.createServer(async (req, res) => {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify(result));
         } catch (e) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Check failed' }));
+            console.error(`[Check] ${sid} failed:`, e && e.message);
+            // Возвращаем минимальные локальные данные вместо полного 500.
+            const fallback = await checkLocal().catch(() => ({
+                steamId: sid, bans: [], comments: [], online: false, whitelisted: false
+            }));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                local: fallback,
+                yooma: null, steam: null, cs2red: null, deti00: null, pride: null, top2: null, faceit: null,
+                partial: true,
+                error: 'Check partially failed: ' + (e && e.message ? e.message : 'unknown')
+            }));
         }
         return;
     }
@@ -4116,6 +4126,44 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
+    // --- Linked accounts (multiaccount / обходники) ---
+    if (parsedUrl.pathname === '/api/linked-accounts' && req.method === 'GET') {
+        const session = await getSessionFromReq(req);
+        if (!session) {
+            sendError(res, 401, 'UNAUTHORIZED', 'Не авторизован');
+            return;
+        }
+        try {
+            const limit = Math.min(200, parseInt(parsedUrl.searchParams.get('limit') || '100', 10));
+            const offset = Math.max(0, parseInt(parsedUrl.searchParams.get('offset') || '0', 10));
+            const groups = await db.getAllLinkedGroups(limit, offset);
+            sendJson(res, 200, { groups });
+        } catch (err) {
+            sendError(res, 500, 'DB_ERROR', err.message || 'DB error');
+        }
+        return;
+    }
+    if (parsedUrl.pathname.startsWith('/api/linked-accounts/') && req.method === 'GET') {
+        const session = await getSessionFromReq(req);
+        if (!session) {
+            sendError(res, 401, 'UNAUTHORIZED', 'Не авторизован');
+            return;
+        }
+        const parts = parsedUrl.pathname.split('/').filter(Boolean);
+        const steamId = parts[2] ? String(parts[2]) : '';
+        if (!steamId || !/^\d{5,}$/.test(steamId)) {
+            sendError(res, 400, 'BAD_STEAMID', 'Нужен SteamID');
+            return;
+        }
+        try {
+            const result = await db.getLinkedSteamAccounts(steamId);
+            sendJson(res, 200, result);
+        } catch (err) {
+            sendError(res, 500, 'DB_ERROR', err.message || 'DB error');
+        }
+        return;
+    }
+
     // --- Дропы (feed) ---
     if (parsedUrl.pathname === '/api/drops' && req.method === 'GET') {
         const limit = Math.min(100, parseInt(parsedUrl.searchParams.get('limit') || '50', 10));
@@ -4338,6 +4386,8 @@ const server = http.createServer(async (req, res) => {
     let fileRelPath = (urlPath === '/' ? '/index.html' : urlPath);
     if (urlPath === '/auth' || urlPath === '/auth/') fileRelPath = '/auth.html';
     else if (urlPath === '/settings' || urlPath === '/settings/') fileRelPath = '/settings.html';
+    else if (urlPath === '/users' || urlPath === '/users/') fileRelPath = '/users.html';
+    else if (urlPath === '/bypassers' || urlPath === '/bypassers/') fileRelPath = '/bypassers.html';
     else if (urlPath === '/logs' || urlPath === '/logs/') fileRelPath = '/logs.html';
     else if (urlPath === '/vdf-history' || urlPath === '/vdf-history/') fileRelPath = '/vdf-history.html';
     else if (urlPath === '/whitelist' || urlPath === '/whitelist/') fileRelPath = '/whitelist.html';

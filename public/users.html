@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="/images/iconhtml.png" type="image/png">
+    <title>Пользователи — FearSearch</title>
+    <script>
+        (function () {
+            try {
+                var raw = localStorage.getItem('localUiSettings');
+                if (!raw) return;
+                var s = JSON.parse(raw);
+                var t = s && s.theme;
+                if (!t || t === 'dark') return;
+                document.documentElement.classList.add('theme-' + t);
+            } catch (_) {}
+        })();
+    </script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { color-scheme: dark; }
+        body { font-family: 'Inter', sans-serif; background-color: #09090b; }
+        html.theme-midnight body { background-color: #05070d; }
+        html.theme-indigo body { background-color: #0b1020; }
+        html.theme-emerald body { background-color: #07120f; }
+        html.theme-crimson body { background-color: #160b10; }
+        html.theme-graphite body { background-color: #0f1116; }
+        .glass-panel {
+            background: rgba(22, 22, 26, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+        html.theme-midnight .glass-panel { background: rgba(14, 16, 24, 0.85); border-color: rgba(148,163,184,.16); }
+        html.theme-indigo .glass-panel { background: rgba(21, 29, 56, 0.82); border-color: rgba(99,102,241,.22); }
+        html.theme-emerald .glass-panel { background: rgba(14, 30, 25, 0.84); border-color: rgba(16,185,129,.22); }
+        html.theme-crimson .glass-panel { background: rgba(36, 18, 24, 0.84); border-color: rgba(244,63,94,.2); }
+        html.theme-graphite .glass-panel { background: rgba(23, 24, 28, 0.84); border-color: rgba(161,161,170,.18); }
+        .grid-bg {
+            background-image: linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 32px 32px;
+        }
+        select { color-scheme: dark; accent-color: #6366f1; background-color: #0f1324; color: #f3f4f6; }
+        select option { background-color: #0f1324; color: #f3f4f6; }
+        select option:checked { background-color: rgba(99, 102, 241, 0.28); color: #e0e7ff; }
+        .level-badge {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 28px; height: 28px; border-radius: 8px;
+            font-size: 13px; font-weight: 700;
+        }
+        .custom-scroll {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(99, 102, 241, 0.45) rgba(255, 255, 255, 0.03);
+        }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.03); border-radius: 999px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.5); border-radius: 999px; }
+        .ui-select-wrap { position: relative; }
+        .ui-select-trigger {
+            display: inline-flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .ui-select-trigger.open { border-color: rgba(99, 102, 241, 0.55) !important; }
+        .ui-select-menu {
+            position: absolute; z-index: 90; left: 0; right: auto; top: calc(100% + 6px);
+            padding: 6px; border-radius: 10px; border: 1px solid rgba(99, 102, 241, 0.28);
+            background: rgba(15, 19, 36, 0.98); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+            min-width: 100%; max-height: 260px; overflow-y: auto;
+            scrollbar-width: none; -ms-overflow-style: none;
+        }
+        .ui-select-menu::-webkit-scrollbar { display: none; }
+        .ui-select-item {
+            width: 100%; border: 0; background: transparent; color: #d1d5db;
+            text-align: left; font-size: 13px; padding: 7px 9px; border-radius: 8px;
+            transition: background-color .12s ease, color .12s ease;
+        }
+        .ui-select-item:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+        .ui-select-item.active { background: rgba(99, 102, 241, .2); color: #c7d2fe; }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
+    </style>
+</head>
+<body class="bg-[#09090b] text-white min-h-screen">
+
+    <div class="fixed inset-0 pointer-events-none z-0">
+        <div class="absolute inset-0 grid-bg"></div>
+        <div class="absolute -top-[200px] -left-[200px] w-[600px] h-[600px] bg-[#5865F2] rounded-full blur-[120px] opacity-[0.07]"></div>
+    </div>
+
+    <main class="relative z-10 container mx-auto px-6 py-12">
+        <header class="flex items-center justify-between mb-8 flex-wrap gap-4">
+            <div class="flex items-center gap-4">
+                <a href="/dashboard" class="w-12 h-12 glass-panel rounded-xl flex items-center justify-center hover:bg-white/[0.05] transition-colors">
+                    <i class="ph ph-arrow-left text-white text-xl"></i>
+                </a>
+                <div>
+                    <h1 class="text-3xl font-bold text-white">Пользователи</h1>
+                    <p class="text-gray-400 text-sm">Управление доступами и уровнями</p>
+                </div>
+            </div>
+            <div id="userInfo" class="glass-panel px-4 py-2 rounded-xl flex items-center gap-3">
+                <span id="userName" class="text-white font-semibold"></span>
+                <span id="userLevel" class="level-badge bg-indigo-500/20 text-indigo-400"></span>
+            </div>
+        </header>
+
+        <section class="glass-panel p-6 rounded-2xl mb-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 bg-indigo-500/10 rounded-xl flex items-center justify-center">
+                    <i class="ph ph-users text-indigo-400 text-xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-white">Список пользователей</h2>
+                <button onclick="loadUsers()" class="ml-auto px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-white/5 text-gray-300 hover:bg-white/10 flex items-center gap-2">
+                    <i class="ph ph-arrows-clockwise"></i> Обновить
+                </button>
+            </div>
+            <div id="usersList" class="space-y-2 max-h-[600px] overflow-y-auto pr-1 custom-scroll"></div>
+        </section>
+
+        <section id="addUserSection" class="glass-panel p-6 rounded-2xl">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                    <i class="ph ph-user-plus text-emerald-400 text-xl"></i>
+                </div>
+                <h2 class="text-xl font-bold text-white">Добавить пользователя</h2>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <input id="newUsername" type="text" placeholder="Логин" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500">
+                <input id="newPassword" type="password" placeholder="Пароль" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500">
+                <div class="flex items-center gap-2">
+                    <select id="newUserLevel" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-emerald-500 w-full">
+                        <option value="1">1 — Мл. модер</option>
+                        <option value="2">2 — Модер</option>
+                        <option value="3">3 — СТМ/СТА</option>
+                        <option value="4">4 — ГА</option>
+                        <option value="5">5 — Суперадмин</option>
+                    </select>
+                    <button onclick="addUser()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 rounded-lg font-semibold transition-colors text-sm whitespace-nowrap">Добавить</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let currentUserLevel = 0;
+        let sessionToken = '';
+        let uiOpenSelectMenu = null;
+
+        function authHeaders() {
+            return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessionToken };
+        }
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        }
+        function escOnclick(s) {
+            if (s == null || s === '') return '';
+            return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/[\r\n]/g, ' ').slice(0, 64);
+        }
+
+        function closeUiSelectMenu() {
+            if (!uiOpenSelectMenu) return;
+            const trigger = uiOpenSelectMenu.parentElement?.querySelector('.ui-select-trigger');
+            if (trigger) trigger.classList.remove('open');
+            uiOpenSelectMenu.remove();
+            uiOpenSelectMenu = null;
+        }
+        function initUiSelects(root = document) {
+            if (!root || !root.querySelectorAll) return;
+            root.querySelectorAll('select').forEach((selectEl) => {
+                if (selectEl.dataset.uiSelectInit === '1') return;
+                selectEl.dataset.uiSelectInit = '1';
+                let host = selectEl.parentElement;
+                if (!host) return;
+                if (!host.classList.contains('ui-select-wrap')) {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'ui-select-wrap relative w-full';
+                    host.insertBefore(wrap, selectEl);
+                    wrap.appendChild(selectEl);
+                    host = wrap;
+                }
+                const trigger = document.createElement('button');
+                trigger.type = 'button';
+                trigger.className = 'ui-select-trigger';
+                trigger.innerHTML = '<span class="truncate"></span><i class="ph ph-caret-down text-gray-400 text-xs"></i>';
+                const selectClasses = String(selectEl.className || '').trim();
+                if (selectClasses) trigger.className += ' ' + selectClasses;
+                selectEl.classList.add('sr-only', 'pointer-events-none', 'absolute', 'opacity-0');
+                selectEl.setAttribute('tabindex', '-1');
+                host.appendChild(trigger);
+                const syncLabel = () => {
+                    const selected = selectEl.options[selectEl.selectedIndex];
+                    const label = selected ? String(selected.textContent || '').trim() : '';
+                    const span = trigger.querySelector('span');
+                    if (span) span.textContent = label || 'Выбрать';
+                };
+                const openMenu = () => {
+                    closeUiSelectMenu();
+                    trigger.classList.add('open');
+                    const menu = document.createElement('div');
+                    menu.className = 'ui-select-menu';
+                    Array.from(selectEl.options).forEach((opt) => {
+                        const item = document.createElement('button');
+                        item.type = 'button';
+                        item.className = 'ui-select-item' + (opt.value === selectEl.value ? ' active' : '');
+                        item.textContent = String(opt.textContent || '').trim();
+                        item.addEventListener('click', () => {
+                            selectEl.value = opt.value;
+                            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+                            syncLabel();
+                            closeUiSelectMenu();
+                        });
+                        menu.appendChild(item);
+                    });
+                    host.appendChild(menu);
+                    uiOpenSelectMenu = menu;
+                };
+                trigger.addEventListener('click', (e) => { e.stopPropagation(); if (uiOpenSelectMenu === menu) closeUiSelectMenu(); else openMenu(); });
+                syncLabel();
+            });
+        }
+        document.addEventListener('click', (e) => {
+            if (uiOpenSelectMenu && !uiOpenSelectMenu.contains(e.target) && !e.target.closest('.ui-select-trigger')) closeUiSelectMenu();
+        });
+        window.addEventListener('resize', closeUiSelectMenu);
+        window.addEventListener('scroll', closeUiSelectMenu, true);
+
+        const levelNames = { 1: 'Мл. модер', 2: 'Модер', 3: 'СТМ/СТА', 4: 'ГА', 5: 'Суперадмин' };
+        const badgeStyles = {
+            1: 'bg-gray-500/20 text-gray-400',
+            2: 'bg-gray-500/20 text-gray-400',
+            3: 'bg-indigo-500/20 text-indigo-400',
+            4: 'bg-amber-500/20 text-amber-400',
+            5: 'bg-rose-500/20 text-rose-400'
+        };
+
+        async function loadUsers() {
+            try {
+                const res = await fetch('/api/users', { headers: authHeaders() });
+                if (!res.ok) {
+                    document.getElementById('usersList').innerHTML = '<p class="text-gray-500 text-sm">Ошибка загрузки</p>';
+                    return;
+                }
+                const { users } = await res.json();
+                const container = document.getElementById('usersList');
+                if (!users || users.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-sm">Нет пользователей</p>';
+                    return;
+                }
+                const myUser = JSON.parse(localStorage.getItem('user') || '{}');
+                const canBindSteamId = currentUserLevel >= 5;
+                container.innerHTML = users.map(u => {
+                    const isMe = u.id === myUser.id;
+                    const canEdit = currentUserLevel >= 5 ? true : (!isMe && u.level < currentUserLevel);
+                    const canDelete = canEdit && !isMe;
+                    const levelOpts = [1,2,3,4,5].filter(l => l <= currentUserLevel).map(l =>
+                        `<option value="${l}" ${l === u.level ? 'selected' : ''}>${l}</option>`
+                    ).join('');
+                    return `
+                    <div class="flex items-center justify-between p-3 bg-white/[0.03] hover:bg-white/[0.06] rounded-xl transition-colors">
+                        <div class="flex items-center gap-3">
+                            <span class="level-badge ${badgeStyles[u.level] || badgeStyles[1]}">${u.level}</span>
+                            <div>
+                                <span class="text-white text-sm font-semibold">${esc(u.displayName || u.username)}</span>
+                                ${isMe ? '<span class="text-amber-400 text-[10px] ml-1">(вы)</span>' : ''}
+                                <div class="text-gray-500 text-xs flex items-center gap-2 flex-wrap">
+                                    ${levelNames[u.level] || 'Уровень ' + u.level}
+                                    ${u.activeSessions > 0 ? `<span class="text-emerald-400">• ${u.activeSessions} ${u.activeSessions === 1 ? 'устройство' : (u.activeSessions < 5 ? 'устройства' : 'устройств')}</span>` : ''}
+                                </div>
+                                ${u.lastActivity ? `<div class="text-gray-500 text-[10px]">Последняя активность: ${new Date(u.lastActivity).toLocaleString('ru-RU')}</div>` : ''}
+                                ${canBindSteamId ? `<div class="text-gray-500 text-[10px] font-mono">SteamID: ${esc(u.steamId || 'не привязан')}</div>` : ''}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            ${canEdit ? `
+                                <select onchange="changeLevel(${u.id}, this.value)" class="bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-white text-xs focus:outline-none focus:border-indigo-500 cursor-pointer">
+                                    ${levelOpts}
+                                </select>
+                                ${canBindSteamId ? `<button onclick="promptSteamId(${u.id}, '${escOnclick(u.username)}', '${escOnclick(u.steamId || '')}')" class="px-2 h-8 rounded-lg hover:bg-cyan-500/10 text-cyan-400/70 hover:text-cyan-300 text-[11px] transition-colors" title="Привязать SteamID">SteamID</button>` : ''}
+                                <button onclick="promptPassword(${u.id}, '${escOnclick(u.username)}')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-indigo-500/10 text-indigo-400/60 hover:text-indigo-400 transition-colors" title="Сменить пароль"><i class="ph ph-key text-base"></i></button>
+                                ${canDelete ? `<button onclick="deleteUser(${u.id}, '${escOnclick(u.username)}')" class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-rose-500/10 text-rose-400/60 hover:text-rose-400 transition-colors" title="Удалить"><i class="ph ph-trash text-base"></i></button>` : ''}
+                            ` : ''}
+                        </div>
+                    </div>`;
+                }).join('');
+                initUiSelects(container);
+            } catch (e) {
+                console.error('loadUsers error:', e);
+                document.getElementById('usersList').innerHTML = '<p class="text-gray-500 text-sm">Ошибка загрузки</p>';
+            }
+        }
+
+        async function addUser() {
+            const username = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('newPassword').value;
+            const level = parseInt(document.getElementById('newUserLevel').value);
+            if (!username || !password) { alert('Введите логин и пароль'); return; }
+            try {
+                const res = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ username, password, displayName: username, level })
+                });
+                const data = await res.json();
+                if (data.error) { alert(data.error); return; }
+            } catch (_) { alert('Ошибка создания пользователя'); return; }
+            document.getElementById('newUsername').value = '';
+            document.getElementById('newPassword').value = '';
+            loadUsers();
+        }
+
+        async function changeLevel(id, newLevel) {
+            try {
+                const res = await fetch(`/api/users/${id}`, {
+                    method: 'PUT',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ level: parseInt(newLevel) })
+                });
+                const data = await res.json();
+                if (data.error) { alert(data.error); loadUsers(); return; }
+                loadUsers();
+            } catch (_) { alert('Ошибка изменения уровня'); }
+        }
+
+        async function promptPassword(id, username) {
+            const newPass = prompt(`Новый пароль для "${username}":`);
+            if (!newPass) return;
+            try {
+                const res = await fetch(`/api/users/${id}`, {
+                    method: 'PUT',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ password: newPass })
+                });
+                const data = await res.json();
+                if (data.error) { alert(data.error); return; }
+                alert('Пароль изменён');
+            } catch (_) { alert('Ошибка смены пароля'); }
+        }
+
+        async function promptSteamId(id, username, currentSteamId) {
+            const current = String(currentSteamId || '').trim();
+            const next = prompt(`SteamID для "${username}" (пусто = снять привязку):`, current);
+            if (next === null) return;
+            const steamId = String(next || '').trim();
+            if (steamId && !/^\d{5,}$/.test(steamId)) {
+                alert('Некорректный SteamID');
+                return;
+            }
+            try {
+                const res = await fetch(`/api/users/${id}`, {
+                    method: 'PUT',
+                    headers: authHeaders(),
+                    body: JSON.stringify({ steamId })
+                });
+                const data = await res.json();
+                if (data.error) { alert(data.error); return; }
+                loadUsers();
+            } catch (_) { alert('Ошибка привязки SteamID'); }
+        }
+
+        async function deleteUser(id, username) {
+            if (!confirm(`Удалить пользователя "${username}"?`)) return;
+            try {
+                const res = await fetch(`/api/users/${id}`, { method: 'DELETE', headers: authHeaders() });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok && data.error) { alert(data.error); return; }
+                loadUsers();
+            } catch (_) { alert('Ошибка удаления'); }
+        }
+
+        async function init() {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            sessionToken = user.token || '';
+            if (!sessionToken) {
+                window.location.href = '/auth';
+                return;
+            }
+            try {
+                const res = await fetch('/api/session', { headers: authHeaders() });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || data.error) {
+                    localStorage.removeItem('user');
+                    window.location.href = '/auth';
+                    return;
+                }
+                currentUserLevel = data.level || 1;
+                document.getElementById('userName').textContent = data.displayName || data.username || '—';
+                document.getElementById('userLevel').textContent = currentUserLevel;
+                document.getElementById('userLevel').className = 'level-badge ' + (badgeStyles[currentUserLevel] || badgeStyles[1]);
+                if (currentUserLevel < 3) {
+                    document.getElementById('addUserSection').classList.add('hidden');
+                }
+                loadUsers();
+            } catch (e) {
+                console.error('init error', e);
+                window.location.href = '/auth';
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
