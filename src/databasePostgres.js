@@ -220,6 +220,24 @@ async function initDatabase() {
             ) THEN
                 ALTER TABLE panel_users ADD COLUMN discord_id TEXT UNIQUE;
             END IF;
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'discord_id' AND is_nullable = 'NO'
+            ) THEN
+                ALTER TABLE panel_users ALTER COLUMN discord_id DROP NOT NULL;
+            END IF;
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'launcher_api_key' AND is_nullable = 'NO'
+            ) THEN
+                ALTER TABLE panel_users ALTER COLUMN launcher_api_key DROP NOT NULL;
+            END IF;
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'steam_id' AND is_nullable = 'NO'
+            ) THEN
+                ALTER TABLE panel_users ALTER COLUMN steam_id DROP NOT NULL;
+            END IF;
         END
         $$;
         DO $$
