@@ -179,6 +179,24 @@ async function initDatabase() {
             ) THEN
                 ALTER TABLE panel_users ADD COLUMN status TEXT NOT NULL DEFAULT 'pending';
             END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'steam_id'
+            ) THEN
+                ALTER TABLE panel_users ADD COLUMN steam_id TEXT UNIQUE;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'launcher_api_key'
+            ) THEN
+                ALTER TABLE panel_users ADD COLUMN launcher_api_key TEXT UNIQUE;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'discord_id'
+            ) THEN
+                ALTER TABLE panel_users ADD COLUMN discord_id TEXT UNIQUE;
+            END IF;
         END
         $$;
         DO $$
