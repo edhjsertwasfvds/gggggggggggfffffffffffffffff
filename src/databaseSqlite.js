@@ -837,9 +837,9 @@ function getTicketsMonthComparison() {
 // VDF history helpers (SQLite fallback; shared with checker backend)
 function getVdfHistoryChecks(limit = 100) {
     const rows = db.prepare(`
-        SELECT check_id, filename, MAX(created_at) as created_at,
-               COUNT(*) as total,
-               SUM(CASE WHEN fear_banned OR yooma_banned THEN 1 ELSE 0 END) as banned
+        SELECT check_id, filename, MIN(created_at) as created_at,
+               COUNT(*) as count,
+               SUM(CASE WHEN fear_banned OR vac_banned OR yooma_banned THEN 1 ELSE 0 END) as banned_count
         FROM vdf_history
         GROUP BY check_id, filename
         ORDER BY check_id DESC
@@ -849,8 +849,8 @@ function getVdfHistoryChecks(limit = 100) {
         check_id: r.check_id,
         filename: r.filename || '',
         created_at: r.created_at,
-        total: r.total || 0,
-        banned: r.banned || 0
+        count: r.count || 0,
+        banned_count: r.banned_count || 0
     }));
 }
 
@@ -951,6 +951,49 @@ function saveVdfHistory(results, filename = '', vdfText = '') {
     return checkId;
 }
 
+// Заглушки для функций, которые пока не реализованы в SQLite-бэкенде.
+// На Railway используется PostgreSQL, поэтому эти методы нужны только для
+// локальных запусков и smoke-тестов, чтобы сервер не падал с "is not a function".
+function logLoginEvent() { return Promise.resolve(); }
+function getLoginLogsByUserId() { return Promise.resolve([]); }
+function getSessionsByUserId() { return Promise.resolve([]); }
+function getUserBySteamId(steamId) {
+    try {
+        return db.prepare('SELECT * FROM users WHERE steam_id = ?').get(steamId) || null;
+    } catch (e) {
+        console.warn('[panelSqlite] getUserBySteamId error:', e && e.message);
+        return null;
+    }
+}
+function createPendingUser(username, password, displayName, steamId) {
+    return createUser(username, password, { displayName, level: 0, steamId, status: 'pending' });
+}
+function createRegistrationConfirmation(userId) { return Promise.resolve({ id: 0, user_id: userId, code: '', status: 'pending' }); }
+function getRegistrationConfirmationByCode() { return Promise.resolve(null); }
+function updateRegistrationConfirmation() { return Promise.resolve(); }
+function getRegistrationStatus() { return Promise.resolve({ status: 'pending', level: 0 }); }
+function updateUserStatusAndLevel(id, status, level) {
+    try {
+        db.prepare('UPDATE users SET status = ?, level = ? WHERE id = ?').run(status, level, id);
+        return Promise.resolve();
+    } catch (e) {
+        console.warn('[panelSqlite] updateUserStatusAndLevel error:', e && e.message);
+        return Promise.resolve();
+    }
+}
+function updateUserDiscordId(id, discordId) {
+    try {
+        db.prepare('UPDATE users SET discord_id = ? WHERE id = ?').run(discordId, id);
+        return Promise.resolve();
+    } catch (e) {
+        console.warn('[panelSqlite] updateUserDiscordId error:', e && e.message);
+        return Promise.resolve();
+    }
+}
+function createBotTask(type, payload) { return Promise.resolve({ id: 0, type, payload: JSON.stringify(payload), status: 'pending' }); }
+function getPendingBotTasks() { return Promise.resolve([]); }
+function updateBotTask() { return Promise.resolve(); }
+
 module.exports = {
     initialize,
     getDbPath, closeDatabase, initDatabase,
@@ -976,7 +1019,12 @@ module.exports = {
     getStaffPunishmentsDaily, getPunishmentsTrend, getPunishmentsMonthComparison, getTicketsMonthComparison,
     getVdfHistoryChecks, getVdfHistoryDetails, getVdfContentByCheckId, saveVdfHistory,
     getLinkedSteamAccounts, getAllLinkedGroups,
-    saveDrops, getDrops, getDropsCount
+    saveDrops, getDrops, getDropsCount,
+    logLoginEvent, getLoginLogsByUserId, getSessionsByUserId,
+    getUserBySteamId, createPendingUser, createRegistrationConfirmation,
+    createBotTask, getRegistrationStatus, getRegistrationConfirmationByCode,
+    updateUserStatusAndLevel, updateRegistrationConfirmation, updateBotTask,
+    getPendingBotTasks, updateUserDiscordId
 };
 
 function saveDrops(drops) {

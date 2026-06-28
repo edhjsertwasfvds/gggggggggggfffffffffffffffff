@@ -76,9 +76,11 @@ async function searchBddStaff(rawQ) {
     } else {
         const esc = q.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
         const like = `%${esc}%`;
-        // Только SteamID (подстрока), Discord ID (подстрока), Discord username = discord_nickname
+        // SteamID, Discord ID, Discord nickname, имя админа или профиля
         sql += ` WHERE (
-            (p.discord_nickname IS NOT NULL AND p.discord_nickname ILIKE $1 ESCAPE '\\')
+            (a.name IS NOT NULL AND a.name ILIKE $1 ESCAPE '\\')
+            OR (p.name IS NOT NULL AND p.name ILIKE $1 ESCAPE '\\')
+            OR (p.discord_nickname IS NOT NULL AND p.discord_nickname ILIKE $1 ESCAPE '\\')
             OR a.steamid ILIKE $1 ESCAPE '\\'
             OR (p.discord_id IS NOT NULL AND p.discord_id ILIKE $1 ESCAPE '\\')
         ) `;

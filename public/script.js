@@ -2573,7 +2573,7 @@ async function loadDrops() {
     scheduleRenderPanel();
     try {
         const res = await fetch('/api/drops?limit=1000', { headers: apiAuthHeaders() });
-        const data = await res.json().catch(() => ({ players: [], total: 0 }));
+        const data = await res.json().catch(() => ({ drops: [], total: 0 }));
             state.drops = { loading: false, drops: Array.isArray(data.drops) ? data.drops : [], total: data.total || 0 };
 
     } catch (_) {
@@ -2614,10 +2614,10 @@ function buildDropsTable(drops, total) {
                                 <td class="py-3 px-2">
                                     <div class="flex items-center gap-2">
                                         <img src="${escapeHtml(d.image || '')}" alt="" class="w-10 h-10 rounded object-contain" onerror="this.style.display='none'">
-                                        <span class="text-white font-medium truncate max-w-[200px]" style="color:${escapeHtml(d.rarity_color || '#fff')}">${escapeHtml(d.name || '—')}</span>
+                                        <span class="text-white font-medium truncate max-w-[200px]" style="color:${/^#[0-9a-fA-F]{3,8}$/.test(d.rarity_color || '') ? d.rarity_color : '#fff'}">${escapeHtml(d.name || '—')}</span>
                                     </div>
                                 </td>
-                                <td class="py-3 px-2 text-yellow-400 font-semibold">${d.price || 0}₽</td>
+                                <td class="py-3 px-2 text-yellow-400 font-semibold">${escapeHtml(String(d.price || 0))}₽</td>
                                 <td class="py-3 px-2">
                                     <div class="flex items-center gap-2">
                                         <img src="${escapeHtml(d.avatar || '')}" alt="" class="w-6 h-6 rounded-full" onerror="this.style.display='none'">
@@ -3894,7 +3894,7 @@ function mergeAllPlayersWithBans(players) {
 function buildBddStaffSearchPanel() {
     return `
         <div class="space-y-4">
-            <p class="text-gray-400 text-sm leading-relaxed">SteamId DIscordID Discord</p>
+            <p class="text-gray-400 text-sm leading-relaxed">Поиск по админам: SteamID, Discord ID, Discord-ник, имя админа или имя профиля.</p>
             <div class="flex flex-wrap gap-2 items-end">
                 <div class="flex-1 min-w-[220px]">
                     <label class="block text-gray-500 text-xs font-semibold mb-1">Query</label>
@@ -3902,7 +3902,7 @@ function buildBddStaffSearchPanel() {
                 </div>
                 <button type="button" onclick="runBddStaffSearch()" class="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-semibold shrink-0">Search</button>
             </div>
-            <div id="bddStaffResults" class="text-gray-500 text-sm min-h-[48px]">Enter a query and press Search.</div>
+            <div id="bddStaffResults" class="text-gray-500 text-sm min-h-[48px]">Введите имя админа, имя профиля, SteamID, Discord ID или Discord-ник и нажмите Search.</div>
         </div>`;
 }
 

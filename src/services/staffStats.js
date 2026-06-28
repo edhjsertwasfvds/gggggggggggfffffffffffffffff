@@ -164,6 +164,17 @@ async function refreshStaffList() {
             });
 
             staffList = admins.filter(filterAdmin).map(normalizeAdminToStaff);
+            // Если API вернул пустой массив (не ошибка), пытаемся использовать локальный staff.json.
+            if (staffList.length === 0) {
+                try {
+                    const raw = fs.readFileSync(STAFF_JSON_PATH, 'utf8');
+                    const data = JSON.parse(raw);
+                    const admins = Array.isArray(data) ? data : [];
+                    staffList = admins.filter(filterAdmin).map(normalizeAdminToStaff);
+                } catch (_) {
+                    staffList = [];
+                }
+            }
             // Обновляем локальный staff.json раз в 24 часа, чтобы интерфейс работал у всех.
             if (staffList.length > 0) {
                 try {

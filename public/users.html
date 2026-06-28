@@ -372,9 +372,23 @@
             } catch (_) { alert('Ошибка удаления'); }
         }
 
+        function getSessionToken() {
+            const token = localStorage.getItem('sessionToken') || '';
+            if (token) return token;
+            try {
+                const u = JSON.parse(localStorage.getItem('user') || '{}');
+                if (u.sessionToken) return u.sessionToken;
+                if (u.token) return u.token;
+            } catch (_) {}
+            const match = String(document.cookie || '').split(';').find(c => String(c).trim().startsWith('sessionToken='));
+            if (match) {
+                try { return decodeURIComponent(match.split('=').slice(1).join('=')); } catch (_) {}
+            }
+            return '';
+        }
+
         async function init() {
-            const user = JSON.parse(localStorage.getItem('user') || '{}');
-            sessionToken = user.token || '';
+            sessionToken = getSessionToken();
             if (!sessionToken) {
                 window.location.href = '/auth';
                 return;

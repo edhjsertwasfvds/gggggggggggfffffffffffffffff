@@ -257,7 +257,7 @@ async function refreshDropsCache() {
         for (const page of pages) {
             await new Promise((resolve) => {
                 const apiUrl = `https://api.fearproject.ru/drops/feed?page=${page}&limit=100`;
-                https.get(apiUrl, {
+                const req = https.get(apiUrl, {
                     headers: {
                         'Accept': '*/*',
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
@@ -268,6 +268,7 @@ async function refreshDropsCache() {
                 }, (apiRes) => {
                     let data = '';
                     apiRes.on('data', c => data += c);
+                    apiRes.on('error', () => resolve());
                     apiRes.on('end', async () => {
                         try {
                             const parsed = JSON.parse(data);
@@ -278,7 +279,9 @@ async function refreshDropsCache() {
                         } catch (_) {}
                         resolve();
                     });
-                }).on('error', () => resolve());
+                });
+                req.setTimeout(15000, () => { try { req.destroy(); } catch (_) {} resolve(); });
+                req.on('error', () => resolve());
             });
         }
     } catch (e) {
@@ -576,7 +579,12 @@ function wantsGzip(req) {
 function getSessionTokenFromCookie(cookieHeader) {
     if (!cookieHeader) return '';
     const m = String(cookieHeader).match(/(?:^|;\s*)sessionToken=([^;]+)/i);
-    return m ? decodeURIComponent(m[1]) : '';
+    if (!m) return '';
+    try {
+        return decodeURIComponent(m[1]);
+    } catch (_) {
+        return '';
+    }
 }
 
 async function resolveUserSession(req) {
@@ -3339,7 +3347,7 @@ const server = http.createServer(async (req, res) => {
                 const found = cachedTop2.allBans.find(p => String(p.steamId) === sid);
                 if (found) return { banned: true, reason: found.reason, date: found.date, expires: found.expires, bans: found.bans };
             }
-            const r = await htmlGet(`https://top2.fun/profiles/${sid}/block/0/`, { ...materialHeaders, Host: 'top2.fun', Referer: `https://top2.fun/profiles/${sid}/?search=1`, Cookie: 'PHPSESSID=647e9c72684a75b3cd7ba27154d50fb0' });
+            const r = await htmlGet(`https://top2.fun/profiles/${sid}/block/0/`, { ...materialHeaders, Host: 'top2.fun', Referer: `https://top2.fun/profiles/${sid}/?search=1`, Cookie: process.env.TOP2_PHPSESSID ? `PHPSESSID=${process.env.TOP2_PHPSESSID}` : '' });
             return r?.status === 200 ? parseMaterialBans(r.html) : { banned: false };
         };
 
@@ -3758,10 +3766,17 @@ const server = http.createServer(async (req, res) => {
         try {
             const forceRefresh = staffStatsUrl.searchParams.get('force') === '1';
             const noCacheYet = !staffPunishmentsCache.lastUpdated || !staffPunishmentsCache.dataBySteamId || Object.keys(staffPunishmentsCache.dataBySteamId).length === 0;
+            const noStaffListYet = !Array.isArray(staffPunishmentsCache.staffList) || staffPunishmentsCache.staffList.length === 0;
             if ((forceRefresh || noCacheYet) && !staffPunishmentsCache.loading) {
                 // Не блокируем ответ: отдаем текущий срез сразу и обновляем кэш в фоне.
                 refreshStaffPunishmentsCache().catch((e) => {
                     console.warn('[Staff stats] background refresh failed:', e && e.message);
+                });
+            }
+            // Если список стафа ещё пуст, подтягиваем его сразу (без ожидания таймаута старта).
+            if (noStaffListYet && !staffPunishmentsCache.staffListLoading) {
+                refreshStaffList().catch((e) => {
+                    console.warn('[Staff list] immediate refresh failed:', e && e.message);
                 });
             }
         } catch (_) {}
@@ -3791,7 +3806,7 @@ const server = http.createServer(async (req, res) => {
                     const ym = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
                     months.add(ym);
                     d.setHours(12, 0, 0, 0);
-                    const day = (d.getDay() - 3 + 7) % 7;
+                    const day = (d.getDay() - 1 + 7) % 7;
                     const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day, 12, 0, 0, 0);
                     const ymd = start.getFullYear() + '-' + String(start.getMonth() + 1).padStart(2, '0') + '-' + String(start.getDate()).padStart(2, '0');
                     weeks.add(ymd);
@@ -4120,13 +4135,13 @@ const server = http.createServer(async (req, res) => {
 
     // --- VDF checks history ---
     if (parsedUrl.pathname === '/api/vdf-history' && req.method === 'GET') {
-        const session = await getSessionFromReq(req);
+        const session = await resolveUserSession(req);
         if (!session) {
             sendError(res, 401, 'UNAUTHORIZED', 'Не авторизован');
             return;
         }
         try {
-            const limit = Math.min(200, parseInt(parsedUrl.searchParams.get('limit') || '100', 10));
+            const limit = Math.min(200, parseInt(parsedUrl.searchParams.get('limit') || '100', 10) || 100);
             const checks = await db.getVdfHistoryChecks(limit);
             sendJson(res, 200, { checks });
         } catch (err) {
@@ -4153,9 +4168,11 @@ const server = http.createServer(async (req, res) => {
                     sendError(res, 404, 'NOT_FOUND', 'VDF не найден');
                     return;
                 }
+                const filename = String(file.filename || `check_${checkId}.vdf`);
+                const asciiFilename = filename.replace(/[^\x20-\x7E]/g, '_');
                 res.writeHead(200, {
                     'Content-Type': 'application/octet-stream',
-                    'Content-Disposition': `attachment; filename=${encodeURIComponent(file.filename || `check_${checkId}.vdf`)}`
+                    'Content-Disposition': `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodeURIComponent(filename)}`
                 });
                 res.end(file.content);
                 return;
@@ -4170,14 +4187,14 @@ const server = http.createServer(async (req, res) => {
 
     // --- Linked accounts (multiaccount / обходники) ---
     if (parsedUrl.pathname === '/api/linked-accounts' && req.method === 'GET') {
-        const session = await getSessionFromReq(req);
+        const session = await resolveUserSession(req);
         if (!session) {
             sendError(res, 401, 'UNAUTHORIZED', 'Не авторизован');
             return;
         }
         try {
-            const limit = Math.min(200, parseInt(parsedUrl.searchParams.get('limit') || '100', 10));
-            const offset = Math.max(0, parseInt(parsedUrl.searchParams.get('offset') || '0', 10));
+            const limit = Math.min(200, parseInt(parsedUrl.searchParams.get('limit') || '100', 10) || 100);
+            const offset = Math.max(0, parseInt(parsedUrl.searchParams.get('offset') || '0', 10) || 0);
             const groups = await db.getAllLinkedGroups(limit, offset);
             sendJson(res, 200, { groups });
         } catch (err) {
@@ -4208,20 +4225,34 @@ const server = http.createServer(async (req, res) => {
 
     // --- Дропы (feed) ---
     if (parsedUrl.pathname === '/api/drops' && req.method === 'GET') {
-        const session = await getSessionFromReq(req);
+        const session = await resolveUserSession(req);
         if (!session) {
             sendError(res, 401, 'UNAUTHORIZED', 'Не авторизован');
             return;
         }
-        const limit = Math.min(5000, parseInt(parsedUrl.searchParams.get('limit') || '1000', 10));
-        const offset = Math.max(0, parseInt(parsedUrl.searchParams.get('offset') || '0', 10));
+        const limit = Math.min(5000, parseInt(parsedUrl.searchParams.get('limit') || '1000', 10) || 1000);
+        const offset = Math.max(0, parseInt(parsedUrl.searchParams.get('offset') || '0', 10) || 0);
         try {
-            const [drops, total] = await Promise.all([
+            let [drops, total] = await Promise.all([
                 db.getDrops(limit, offset),
                 db.getDropsCount()
             ]);
-            // В фоне подтягиваем свежие дропы из Fear API, если они есть.
-            refreshDropsCache().catch((e) => console.warn('[Drops] background refresh failed:', e && e.message));
+            // Если база пустая, подтягиваем свежие дропы из Fear API.
+            if (total === 0) {
+                if (dropsRefreshRunning) {
+                    // Ждём, пока текущий фоновый запрос наполнит таблицу.
+                    await new Promise(r => setTimeout(r, 2000));
+                } else {
+                    await refreshDropsCache();
+                }
+                [drops, total] = await Promise.all([
+                    db.getDrops(limit, offset),
+                    db.getDropsCount()
+                ]);
+            } else {
+                // В фоне обновляем кэш.
+                refreshDropsCache().catch((e) => console.warn('[Drops] background refresh failed:', e && e.message));
+            }
             sendJson(res, 200, { drops, total });
         } catch (err) {
             sendError(res, 500, 'DB_ERROR', err.message || 'DB error');
@@ -4432,7 +4463,7 @@ const server = http.createServer(async (req, res) => {
     // Guard: если пользователь не авторизован, не отдаём защищённые HTML страницы.
     // Делается на сервере, чтобы работало даже если JS не загрузился.
     // Главная страница /index.html публичная (лендинг). Дашборд /dashboard.html защищён.
-    const isHtmlPage = fileRelPath === '/dashboard.html' || fileRelPath === '/settings.html' || fileRelPath === '/logs.html' || fileRelPath === '/whitelist.html' || fileRelPath === '/vdf-history.html';
+    const isHtmlPage = fileRelPath === '/dashboard.html' || fileRelPath === '/settings.html' || fileRelPath === '/logs.html' || fileRelPath === '/whitelist.html' || fileRelPath === '/vdf-history.html' || fileRelPath === '/users.html' || fileRelPath === '/bypassers.html';
     if (isHtmlPage) {
         const tokenFromCookie = getSessionTokenFromCookie(req.headers.cookie || '');
         const session = tokenFromCookie ? await auth.getSession(tokenFromCookie) : null;
@@ -4562,8 +4593,8 @@ process.on('SIGTERM', () => {
         updateDataInBackground();
         setInterval(updateDataInBackground, BG_CYCLE_MS);
 
-        // Staff list: первый раз через 5 сек после старта, далее каждые 24 часа
-        setTimeout(() => refreshStaffList(), 5000);
+        // Staff list: сразу при старте, далее каждые 24 часа
+        refreshStaffList().catch((e) => console.warn('[Startup] staff list initial refresh failed:', e && e.message));
         setInterval(refreshStaffList, STAFF_LIST_REFRESH_INTERVAL_MS);
 
         // Статистика наказаний стафа: далее каждый час

@@ -27,7 +27,20 @@ function getUserLevel() {
 }
 
 function getSessionToken() {
-    try { return (JSON.parse(localStorage.getItem('user') || '{}')).sessionToken || ''; } catch { return ''; }
+    try {
+        const top = localStorage.getItem('sessionToken');
+        if (top) return top;
+    } catch (_) {}
+    try {
+        const u = JSON.parse(localStorage.getItem('user') || '{}');
+        if (u.sessionToken) return u.sessionToken;
+        if (u.token) return u.token;
+    } catch (_) {}
+    const match = String(document.cookie || '').split(';').find(c => String(c).trim().startsWith('sessionToken='));
+    if (match) {
+        try { return decodeURIComponent(match.split('=').slice(1).join('=')); } catch (_) {}
+    }
+    return '';
 }
 
 function apiAuthHeaders() {

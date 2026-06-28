@@ -58,13 +58,25 @@
         const statusEl = document.getElementById('status');
         let expandedId = null;
 
-        function apiAuthHeaders() {
-            let token = '';
+        function getSessionToken() {
+            try {
+                const top = localStorage.getItem('sessionToken');
+                if (top) return top;
+            } catch (_) {}
             try {
                 const u = JSON.parse(localStorage.getItem('user') || '{}');
-                token = u.sessionToken || '';
+                if (u.sessionToken) return u.sessionToken;
+                if (u.token) return u.token;
             } catch (_) {}
-            return { 'Authorization': 'Bearer ' + token };
+            const match = String(document.cookie || '').split(';').find(c => String(c).trim().startsWith('sessionToken='));
+            if (match) {
+                try { return decodeURIComponent(match.split('=').slice(1).join('=')); } catch (_) {}
+            }
+            return '';
+        }
+
+        function apiAuthHeaders() {
+            return { 'Authorization': 'Bearer ' + getSessionToken() };
         }
 
         function formatDate(iso) {
@@ -85,6 +97,7 @@
                 if (res.status === 401) {
                     listEl.innerHTML = '<div class="p-8 text-center text-rose-400">Не авторизован. Войдите через основной сайт.</div>';
                     statusEl.textContent = '';
+                    stopVdfRefresh();
                     return;
                 }
                 if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -107,14 +120,41 @@
             await renderDetails(checkId);
         }
 
+        async function downloadVdf(checkId) {
+            try {
+                const res = await fetch('/api/vdf-history/' + checkId + '/download', { headers: apiAuthHeaders() });
+                if (!res.ok) {
+                    alert('Ошибка скачивания: ' + res.status);
+                    return;
+                }
+                const blob = await res.blob();
+                const header = res.headers.get('Content-Disposition') || '';
+                const starMatch = header.match(/filename\*=UTF-8''([^;\n]*)/i);
+                const plainMatch = header.match(/filename\s*=\s*"?([^;"\n]*)"?/);
+                const filename = (starMatch ? decodeURIComponent(starMatch[1]) : '') || (plainMatch ? plainMatch[1] : '') || ('check_' + checkId + '.vdf');
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            } catch (err) {
+                alert('Ошибка скачивания: ' + err.message);
+            }
+        }
+
         async function renderDetails(checkId) {
             const row = document.getElementById('check-row-' + checkId);
             if (!row) return;
-            const old = row.nextElementSibling;
-            if (old && old.classList.contains('details-row')) old.remove();
+            // Удаляем любую ранее открытую детальную строку, чтобы не оставалось «зависших» развёрток.
+            listEl.querySelectorAll('.details-row').forEach(r => r.remove());
+            const expectedId = checkId;
 
             try {
                 const res = await fetch('/api/vdf-history/' + checkId, { headers: apiAuthHeaders() });
+                if (expectedId !== expandedId) return;
                 if (!res.ok) throw new Error('HTTP ' + res.status);
                 const data = await res.json();
                 const details = Array.isArray(data.details) ? data.details : [];
@@ -123,9 +163,9 @@
                         <td colspan="5" class="p-4">
                             <div class="flex items-center justify-between mb-3">
                                 <div class="text-sm font-semibold text-gray-300">Аккаунты (${details.length})</div>
-                                <a href="/api/vdf-history/${checkId}/download" class="px-3 py-1.5 rounded-lg bg-[#5865F2]/20 hover:bg-[#5865F2]/30 text-[#a5b4fc] text-xs font-semibold border border-[#5865F2]/30 transition-colors flex items-center gap-1">
+                                <button onclick="downloadVdf(${checkId})" class="px-3 py-1.5 rounded-lg bg-[#5865F2]/20 hover:bg-[#5865F2]/30 text-[#a5b4fc] text-xs font-semibold border border-[#5865F2]/30 transition-colors flex items-center gap-1">
                                     <i class="ph ph-download-simple"></i> Скачать .vdf
-                                </a>
+                                </button>
                             </div>
                             <div class="overflow-x-auto rounded-lg border border-white/10">
                                 <table class="w-full text-left text-sm">
@@ -159,12 +199,14 @@
                     </tr>`;
                 row.insertAdjacentHTML('afterend', detailsHtml);
             } catch (err) {
+                if (expectedId !== expandedId) return;
                 row.insertAdjacentHTML('afterend', `<tr class="details-row"><td colspan="5" class="p-4 text-rose-400 text-sm">Ошибка загрузки деталей: ${escapeHtml(err.message)}</td></tr>`);
             }
         }
 
         let lastChecks = [];
         let renderedChecks = [];
+        let lastExpandedId = null;
 
         function renderCurrentChecks() {
             renderChecks(lastChecks);
@@ -184,15 +226,25 @@
 
         function renderChecks(checks) {
             lastChecks = checks;
+            const expandedChanged = expandedId !== lastExpandedId;
             if (checks.length === 0) {
                 listEl.innerHTML = '<div class="p-8 text-center text-gray-500">История VDF-проверок пуста</div>';
                 renderedChecks = [];
+                lastExpandedId = expandedId;
                 return;
             }
-            // Если данные не изменились, не трогаем DOM — развернутые детали остаются на месте.
-            if (checksEqual(checks, renderedChecks)) {
+            // Если данные не изменились и развернутый элемент не менялся, не трогаем DOM.
+            if (!expandedChanged && checksEqual(checks, renderedChecks)) {
+                lastExpandedId = expandedId;
                 return;
             }
+            // Если просто сменился развёрнутый элемент (не закрытие), не перерисовываем таблицу —
+            // renderDetails сама удалит старую деталь и вставит новую.
+            if (expandedChanged && expandedId !== null) {
+                lastExpandedId = expandedId;
+                return;
+            }
+            lastExpandedId = expandedId;
             renderedChecks = checks.map(c => ({ ...c }));
             listEl.innerHTML = `
                 <div class="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03]">
@@ -225,7 +277,11 @@
         }
 
         loadChecks();
-        setInterval(loadChecks, 5000);
+        const vdfRefreshInterval = setInterval(loadChecks, 5000);
+
+        function stopVdfRefresh() {
+            clearInterval(vdfRefreshInterval);
+        }
     </script>
 </body>
 </html>
