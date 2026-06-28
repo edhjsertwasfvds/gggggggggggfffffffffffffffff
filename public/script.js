@@ -1320,6 +1320,9 @@ function renderPanel() {
             return labels;
         })();
 
+        const isCustomWeek = state.punishments.statsPeriodMode === 'week' && !!state.punishments.customWeekStart && !!state.punishments.customWeekEnd;
+        const isWeekMode = (state.punishments.statsPeriodMode === 'week' && !!state.punishments.selectedWeekStart) || isCustomWeek;
+
         const monthScopedList = selectedMonth
             ? list.filter(p => {
                 const ts = getCreatedTs(p);
@@ -1329,11 +1332,40 @@ function renderPanel() {
                 return ym === selectedMonth;
             })
             : list;
-        const filteredList = monthScopedList.filter(isVisibleStatus);
-        const unbannedList = monthScopedList.filter(isUnbannedStatus);
+        // Фильтрация по неделе (выбранной или произвольной)
+        const weekScopedList = (() => {
+            if (isWeekMode) {
+                let startStr, endStr;
+                if (isCustomWeek) {
+                    startStr = state.punishments.customWeekStart;
+                    endStr = state.punishments.customWeekEnd;
+                } else {
+                    startStr = state.punishments.selectedWeekStart;
+                    const [sy, sm, sd] = startStr.split('-').map(n => parseInt(n, 10));
+                    const start = new Date(sy, (sm || 1) - 1, sd || 1, 0, 0, 0, 0);
+                    const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+                    endStr = end.getFullYear() + '-' + String(end.getMonth() + 1).padStart(2, '0') + '-' + String(end.getDate()).padStart(2, '0');
+                }
+                if (startStr && endStr) {
+                    const [sY, sM, sD] = startStr.split('-').map(n => parseInt(n, 10));
+                    const [eY, eM, eD] = endStr.split('-').map(n => parseInt(n, 10));
+                    const start = new Date(sY, (sM || 1) - 1, sD || 1, 0, 0, 0, 0);
+                    const end = new Date(eY, (eM || 1) - 1, eD || 1, 23, 59, 59, 999);
+                    return monthScopedList.filter(p => {
+                        const ts = getCreatedTs(p);
+                        if (ts == null) return false;
+                        const d = new Date(ts * 1000);
+                        return d >= start && d <= end;
+                    });
+                }
+            }
+            return monthScopedList;
+        })();
+        const filteredList = weekScopedList.filter(isVisibleStatus);
+        const unbannedList = weekScopedList.filter(isUnbannedStatus);
         /** Список наказаний: активные + истёкшие + разбанен (одна таблица, без отдельного счётчика «снято»). */
         const typeFilter = String(state.punishments.typeFilter || '').trim();
-        const displayList = monthScopedList.filter((p) => {
+        const displayList = weekScopedList.filter((p) => {
             if (typeFilter && String(p.type) !== typeFilter) return false;
             return true;
         });
@@ -1345,8 +1377,6 @@ function renderPanel() {
         }
         const effectiveView = (view === 'stats' && !canViewStaffStats) ? 'list' : view;
 
-        const isCustomWeek = state.punishments.statsPeriodMode === 'week' && !!state.punishments.customWeekStart && !!state.punishments.customWeekEnd;
-        const isWeekMode = (state.punishments.statsPeriodMode === 'week' && !!state.punishments.selectedWeekStart) || isCustomWeek;
         const currentPeriodLabel = isCustomWeek
             ? `${state.punishments.customWeekStart} — ${state.punishments.customWeekEnd}`
             : (isWeekMode
@@ -1596,7 +1626,7 @@ function renderPanel() {
                     </table>
                 </div>`;
         } else {
-            content.innerHTML = buildPunishmentsListView(mode, monthScopedList, punishmentsInputHtml, monthSelectHtml, punishmentsError, loading, ownSteamMode);
+            content.innerHTML = buildPunishmentsListView(mode, weekScopedList, punishmentsInputHtml, monthSelectHtml, punishmentsError, loading, ownSteamMode);
         }
         staggerRows(content);
         return;
