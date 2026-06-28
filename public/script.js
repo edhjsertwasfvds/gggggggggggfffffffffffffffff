@@ -8,7 +8,7 @@ const state = {
     yooma: { loading: false, players: [] },
     suspicious: { loading: false, players: [] },
     allPlayers: { loading: false, players: [], requestPending: 0 },
-    drops: { loading: false, players: [], total: 0 },
+    drops: { loading: false, drops: [], total: 0 },
     faceitLevels: {},
     openCategory: null,
     /** Вкладка внутри «Проверка»: player | admins */
@@ -1612,11 +1612,11 @@ function renderPanel() {
     }
 
     if (cat === 'Дропы') {
-        const { loading, players, total } = state.drops;
-        if (loading && players.length === 0) {
+        const { loading, drops, total } = state.drops;
+        if (loading && drops.length === 0) {
             content.innerHTML = '<p class="text-gray-400 text-sm text-center py-8">Загрузка дропов...</p>';
-        } else if (players.length > 0) {
-            content.innerHTML = buildDropsTable(players, total);
+        } else if (drops.length > 0) {
+            content.innerHTML = buildDropsTable(drops, total);
         } else {
             content.innerHTML = '<p class="text-gray-400 text-sm text-center py-8">Нет данных по дропам</p>';
         }
@@ -2507,31 +2507,27 @@ function buildPunishmentsListView(mode, monthScopedList, inputHtml, monthSelectH
         </div>`;
     };
 
+    const totalBans = scoped.filter(p => p.type === 1).length;
+    const totalMutes = scoped.filter(p => p.type === 2).length;
+    const totalAll = Math.max(0, totalBans + totalMutes - removed.length);
+
     const summaryCards = `
-        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-5">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-5">
             <div class="bg-rose-500/10 border border-rose-500/20 rounded-lg px-2 py-3 text-center">
-                <div class="text-rose-400 font-bold text-lg">${activeBans.length}</div>
-                <div class="text-gray-500 text-[10px]">Активные баны</div>
-            </div>
-            <div class="bg-rose-500/5 border border-rose-500/10 rounded-lg px-2 py-3 text-center">
-                <div class="text-rose-300 font-bold text-lg">${expiredBans.length}</div>
-                <div class="text-gray-500 text-[10px]">Истекшие баны</div>
+                <div class="text-rose-400 font-bold text-lg">${totalBans}</div>
+                <div class="text-gray-500 text-[10px]">Баны</div>
             </div>
             <div class="bg-amber-500/10 border border-amber-500/20 rounded-lg px-2 py-3 text-center">
-                <div class="text-amber-400 font-bold text-lg">${activeMutes.length}</div>
-                <div class="text-gray-500 text-[10px]">Активные муты</div>
-            </div>
-            <div class="bg-amber-500/5 border border-amber-500/10 rounded-lg px-2 py-3 text-center">
-                <div class="text-amber-300 font-bold text-lg">${expiredMutes.length}</div>
-                <div class="text-gray-500 text-[10px]">Истекшие муты</div>
-            </div>
-            <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2 py-3 text-center">
-                <div class="text-emerald-400 font-bold text-lg">${totalWithoutRemoved}</div>
-                <div class="text-gray-500 text-[10px]">Всего без снятых</div>
+                <div class="text-amber-400 font-bold text-lg">${totalMutes}</div>
+                <div class="text-gray-500 text-[10px]">Муты</div>
             </div>
             <div class="bg-blue-500/10 border border-blue-500/20 rounded-lg px-2 py-3 text-center">
                 <div class="text-blue-400 font-bold text-lg">${removed.length}</div>
-                <div class="text-gray-500 text-[10px]">Снятые</div>
+                <div class="text-gray-500 text-[10px]">Снято</div>
+            </div>
+            <div class="bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-2 py-3 text-center">
+                <div class="text-emerald-400 font-bold text-lg">${totalAll}</div>
+                <div class="text-gray-500 text-[10px]">Всего</div>
             </div>
         </div>`;
 
@@ -2557,7 +2553,8 @@ async function loadDrops() {
     try {
         const res = await fetch('/api/drops?limit=50', { headers: apiAuthHeaders() });
         const data = await res.json().catch(() => ({ players: [], total: 0 }));
-        state.drops = { loading: false, players: Array.isArray(data.players) ? data.players : [], total: data.total || 0 };
+            state.drops = { loading: false, drops: Array.isArray(data.drops) ? data.drops : [], total: data.total || 0 };
+
     } catch (_) {
         state.drops.loading = false;
     }
@@ -2565,13 +2562,13 @@ async function loadDrops() {
     scheduleRenderPanel();
 }
 
-function buildDropsTable(players, total) {
-    const sorted = [...players].sort((a, b) => (a.position || 0) - (b.position || 0));
+function buildDropsTable(drops, total) {
+    const sorted = [...drops].sort((a, b) => (b.id || 0) - (a.id || 0));
     return `
         <div class="flex gap-3 mb-4 flex-wrap">
             <div class="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
-                <span class="text-yellow-400 font-bold">${total || players.length}</span>
-                <span class="text-gray-500 text-xs">игроков в топе</span>
+                <span class="text-yellow-400 font-bold">${total || drops.length}</span>
+                <span class="text-gray-500 text-xs">дропов</span>
             </div>
         </div>
         <div class="overflow-x-auto">
@@ -2579,27 +2576,37 @@ function buildDropsTable(players, total) {
                 <thead>
                     <tr class="text-gray-400 border-b border-white/10">
                         <th class="py-3 px-2 font-semibold">#</th>
+                        <th class="py-3 px-2 font-semibold">Предмет</th>
+                        <th class="py-3 px-2 font-semibold">Цена</th>
                         <th class="py-3 px-2 font-semibold">Игрок</th>
-                        <th class="py-3 px-2 font-semibold">Сумма</th>
-                        <th class="py-3 px-2 font-semibold">Скинов</th>
-                        <th class="py-3 px-2 font-semibold">Лучшие скины</th>
+                        <th class="py-3 px-2 font-semibold">Время</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${sorted.length === 0
                         ? `<tr><td colspan="5" class="py-6 text-center text-gray-500">Нет данных</td></tr>`
-                        : sorted.map(p => {
-                            const sid = String(p.steamid || '');
-                            const skins = (p.skins || []).slice(0, 3).map(s => s.name || '').join(', ') + ((p.skins || []).length > 3 ? ` +${p.skins.length - 3}` : '');
+                        : sorted.map((d, i) => {
+                            const sid = String(d.steamid || '');
+                            const time = d.created_at ? new Date(d.created_at).toLocaleString('ru-RU') : '—';
                             return `<tr class="border-b border-white/5 hover:bg-white/[0.03] row-new">
-                                <td class="py-3 px-2 text-gray-500 font-mono">${p.position || '?'}</td>
+                                <td class="py-3 px-2 text-gray-500 font-mono">${d.id || i + 1}</td>
                                 <td class="py-3 px-2">
-                                    <div class="text-white font-medium truncate max-w-[160px]">${escapeHtml(p.name || '—')}</div>
-                                    <div class="text-gray-600 font-mono text-[10px]">${escapeHtml(sid)}</div>
+                                    <div class="flex items-center gap-2">
+                                        <img src="${escapeHtml(d.image || '')}" alt="" class="w-10 h-10 rounded object-contain" onerror="this.style.display='none'">
+                                        <span class="text-white font-medium truncate max-w-[200px]" style="color:${escapeHtml(d.rarity_color || '#fff')}">${escapeHtml(d.name || '—')}</span>
+                                    </div>
                                 </td>
-                                <td class="py-3 px-2 text-yellow-400 font-semibold">${p.total || 0}₽</td>
-                                <td class="py-3 px-2 text-gray-300">${p.count || 0}</td>
-                                <td class="text-gray-400 text-xs max-w-[200px] truncate" title="${escapeHtml(skins)}">${escapeHtml(skins) || '—'}</td>
+                                <td class="py-3 px-2 text-yellow-400 font-semibold">${d.price || 0}₽</td>
+                                <td class="py-3 px-2">
+                                    <div class="flex items-center gap-2">
+                                        <img src="${escapeHtml(d.avatar || '')}" alt="" class="w-6 h-6 rounded-full" onerror="this.style.display='none'">
+                                        <div>
+                                            <div class="text-white font-medium text-xs">${escapeHtml(d.name || '—')}</div>
+                                            <div class="text-gray-600 font-mono text-[10px]">${escapeHtml(sid)}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-2 text-gray-400 text-xs whitespace-nowrap">${escapeHtml(time)}</td>
                             </tr>`;
                         }).join('')}
                 </tbody>

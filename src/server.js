@@ -4116,11 +4116,11 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // --- Дропы (leaderboard) ---
+    // --- Дропы (feed) ---
     if (parsedUrl.pathname === '/api/drops' && req.method === 'GET') {
         const limit = Math.min(100, parseInt(parsedUrl.searchParams.get('limit') || '50', 10));
         const page = Math.max(1, parseInt(parsedUrl.searchParams.get('page') || '1', 10));
-        const apiUrl = `https://api.fearproject.ru/leaderboard/drops?page=${page}&limit=${limit}`;
+        const apiUrl = `https://api.fearproject.ru/drops/feed?page=${page}&limit=${limit}`;
         https.get(apiUrl, {
             headers: {
                 'Accept': '*/*',
@@ -4133,11 +4133,17 @@ const server = http.createServer(async (req, res) => {
             let data = '';
             apiRes.on('data', c => data += c);
             apiRes.on('end', () => {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(data);
+                try {
+                    const parsed = JSON.parse(data);
+                    const drops = Array.isArray(parsed.feed) ? parsed.feed : [];
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ drops, total: drops.length }));
+                } catch (e) {
+                    sendJson(res, 200, { drops: [], total: 0 });
+                }
             });
         }).on('error', () => {
-            sendJson(res, 200, { players: [], total: 0 });
+            sendJson(res, 200, { drops: [], total: 0 });
         });
         return;
     }
