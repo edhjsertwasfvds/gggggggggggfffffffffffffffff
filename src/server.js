@@ -248,6 +248,46 @@ const backgroundState = {
     cycleNo: 0
 };
 
+let dropsRefreshRunning = false;
+async function refreshDropsCache() {
+    if (dropsRefreshRunning) return;
+    dropsRefreshRunning = true;
+    try {
+        const pages = [1, 2, 3];
+        for (const page of pages) {
+            await new Promise((resolve) => {
+                const apiUrl = `https://api.fearproject.ru/drops/feed?page=${page}&limit=100`;
+                https.get(apiUrl, {
+                    headers: {
+                        'Accept': '*/*',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+                        'Origin': 'https://fearproject.ru',
+                        'Referer': 'https://fearproject.ru/',
+                        ...(FEAR_ACCESS_TOKEN ? { 'Cookie': `access_token=${FEAR_ACCESS_TOKEN}` } : {})
+                    }
+                }, (apiRes) => {
+                    let data = '';
+                    apiRes.on('data', c => data += c);
+                    apiRes.on('end', async () => {
+                        try {
+                            const parsed = JSON.parse(data);
+                            const drops = Array.isArray(parsed.feed) ? parsed.feed : [];
+                            if (drops.length && typeof db.saveDrops === 'function') {
+                                await db.saveDrops(drops);
+                            }
+                        } catch (_) {}
+                        resolve();
+                    });
+                }).on('error', () => resolve());
+            });
+        }
+    } catch (e) {
+        console.warn('[Drops] refresh error:', e && e.message);
+    } finally {
+        dropsRefreshRunning = false;
+    }
+}
+
 // Кэш стаффа и его статистики наказаний.
 // - список стаффа обновляем раз в 24 часа
 // - статистику наказаний по стаффу обновляем раз в час
@@ -4166,33 +4206,24 @@ const server = http.createServer(async (req, res) => {
 
     // --- Дропы (feed) ---
     if (parsedUrl.pathname === '/api/drops' && req.method === 'GET') {
-        const limit = Math.min(100, parseInt(parsedUrl.searchParams.get('limit') || '50', 10));
-        const page = Math.max(1, parseInt(parsedUrl.searchParams.get('page') || '1', 10));
-        const apiUrl = `https://api.fearproject.ru/drops/feed?page=${page}&limit=${limit}`;
-        https.get(apiUrl, {
-            headers: {
-                'Accept': '*/*',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
-                'Origin': 'https://fearproject.ru',
-                'Referer': 'https://fearproject.ru/',
-                ...(FEAR_ACCESS_TOKEN ? { 'Cookie': `access_token=${FEAR_ACCESS_TOKEN}` } : {})
-            }
-        }, (apiRes) => {
-            let data = '';
-            apiRes.on('data', c => data += c);
-            apiRes.on('end', () => {
-                try {
-                    const parsed = JSON.parse(data);
-                    const drops = Array.isArray(parsed.feed) ? parsed.feed : [];
-                    res.writeHead(200, { 'Content-Type': 'application/json' });
-                    res.end(JSON.stringify({ drops, total: drops.length }));
-                } catch (e) {
-                    sendJson(res, 200, { drops: [], total: 0 });
-                }
-            });
-        }).on('error', () => {
-            sendJson(res, 200, { drops: [], total: 0 });
-        });
+        const session = await getSessionFromReq(req);
+        if (!session) {
+            sendError(res, 401, 'UNAUTHORIZED', 'Не авторизован');
+            return;
+        }
+        const limit = Math.min(5000, parseInt(parsedUrl.searchParams.get('limit') || '1000', 10));
+        const offset = Math.max(0, parseInt(parsedUrl.searchParams.get('offset') || '0', 10));
+        try {
+            const [drops, total] = await Promise.all([
+                db.getDrops(limit, offset),
+                db.getDropsCount()
+            ]);
+            // В фоне подтягиваем свежие дропы из Fear API, если они есть.
+            refreshDropsCache().catch((e) => console.warn('[Drops] background refresh failed:', e && e.message));
+            sendJson(res, 200, { drops, total });
+        } catch (err) {
+            sendError(res, 500, 'DB_ERROR', err.message || 'DB error');
+        }
         return;
     }
 
@@ -4536,6 +4567,10 @@ process.on('SIGTERM', () => {
         // Статистика наказаний стафа: далее каждый час
         setTimeout(() => refreshStaffPunishmentsCache(), 10000);
         setInterval(refreshStaffPunishmentsCache, STAFF_STATS_REFRESH_INTERVAL_MS);
+
+        // Дропы: первый раз через 5 сек, далее каждые 5 минут
+        setTimeout(() => refreshDropsCache(), 5000);
+        setInterval(refreshDropsCache, 5 * 60 * 1000);
     });
 })().catch(err => {
     console.error('Ошибка запуска:', err);

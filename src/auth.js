@@ -36,7 +36,11 @@ function rowToSession(row) {
 }
 
 async function enrichSessionInfo(ip, userAgent) {
-    const { country, city } = await lookupIp(ip);
+    const geo = await Promise.race([
+        lookupIp(ip),
+        new Promise(resolve => setTimeout(() => resolve({ country: null, city: null }), 3000))
+    ]);
+    const { country, city } = geo || {};
     const { device, os, browser } = parseUserAgent(userAgent);
     return {
         ip: ip || null,

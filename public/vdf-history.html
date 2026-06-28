@@ -164,17 +164,36 @@
         }
 
         let lastChecks = [];
+        let renderedChecks = [];
 
         function renderCurrentChecks() {
             renderChecks(lastChecks);
+        }
+
+        function checksEqual(a, b) {
+            if (a.length !== b.length) return false;
+            for (let i = 0; i < a.length; i++) {
+                if (a[i].check_id !== b[i].check_id) return false;
+                if (a[i].count !== b[i].count) return false;
+                if (a[i].banned_count !== b[i].banned_count) return false;
+                if (a[i].filename !== b[i].filename) return false;
+                if (a[i].created_at !== b[i].created_at) return false;
+            }
+            return true;
         }
 
         function renderChecks(checks) {
             lastChecks = checks;
             if (checks.length === 0) {
                 listEl.innerHTML = '<div class="p-8 text-center text-gray-500">История VDF-проверок пуста</div>';
+                renderedChecks = [];
                 return;
             }
+            // Если данные не изменились, не трогаем DOM — развернутые детали остаются на месте.
+            if (checksEqual(checks, renderedChecks)) {
+                return;
+            }
+            renderedChecks = checks.map(c => ({ ...c }));
             listEl.innerHTML = `
                 <div class="overflow-x-auto rounded-xl border border-white/10 bg-white/[0.03]">
                     <table class="w-full text-left text-sm">

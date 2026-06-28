@@ -1191,16 +1191,7 @@ function renderPanel() {
         const typeFilterValue = String(state.punishments.typeFilter || '');
         const punishmentsInputHtml = `
             <div class="flex flex-wrap gap-2 mb-4">
-                <input type="text" id="punishmentsSteamIdInput" placeholder="${mode === 'player' ? 'SteamID игрока' : (ownSteamMode ? 'Ваш SteamID или SteamID админа' : 'SteamID админа')}" autocomplete="off" class="flex-1 min-w-[180px] bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-emerald-500 transition-colors font-mono" value="${escapeHtml(state.punishments.lastSteamId || ownSteamId || '')}" onkeydown="if(event.key==='Enter') loadPunishmentsBySteamId()">
-                <select id="punishmentsModeSelect" onchange="setPunishmentsMode(this.value)" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500 min-w-[140px]">
-                    <option value="admin" ${mode === 'admin' ? 'selected' : ''}>По админу</option>
-                    <option value="player" ${mode === 'player' ? 'selected' : ''}>По игроку</option>
-                </select>
-                <select id="punishmentsTypeSelect" onchange="setPunishmentsTypeFilter(this.value)" class="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500 min-w-[120px]">
-                    <option value="" ${typeFilterValue === '' ? 'selected' : ''}>Все типы</option>
-                    <option value="1" ${typeFilterValue === '1' ? 'selected' : ''}>Бан</option>
-                    <option value="2" ${typeFilterValue === '2' ? 'selected' : ''}>Мут</option>
-                </select>
+                <input type="text" id="punishmentsSteamIdInput" placeholder="SteamID" autocomplete="off" class="flex-1 min-w-[180px] bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-emerald-500 transition-colors font-mono" value="${escapeHtml(state.punishments.lastSteamId || ownSteamId || '')}" onkeydown="if(event.key==='Enter') loadPunishmentsBySteamId()">
                 <button type="button" onclick="loadPunishmentsBySteamId()" class="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-lg transition-colors">${ownSteamMode ? 'Обновить' : 'Загрузить'}</button>
             </div>`;
 
@@ -2551,7 +2542,7 @@ async function loadDrops() {
     state.drops.loading = true;
     scheduleRenderPanel();
     try {
-        const res = await fetch('/api/drops?limit=50', { headers: apiAuthHeaders() });
+        const res = await fetch('/api/drops?limit=1000', { headers: apiAuthHeaders() });
         const data = await res.json().catch(() => ({ players: [], total: 0 }));
             state.drops = { loading: false, drops: Array.isArray(data.drops) ? data.drops : [], total: data.total || 0 };
 
@@ -2601,7 +2592,7 @@ function buildDropsTable(drops, total) {
                                     <div class="flex items-center gap-2">
                                         <img src="${escapeHtml(d.avatar || '')}" alt="" class="w-6 h-6 rounded-full" onerror="this.style.display='none'">
                                         <div>
-                                            <div class="text-white font-medium text-xs">${escapeHtml(d.name || '—')}</div>
+                                            <div class="text-white font-medium text-xs">${escapeHtml(d.player_name || d.player || d.name || '—')}</div>
                                             <div class="text-gray-600 font-mono text-[10px]">${escapeHtml(sid)}</div>
                                         </div>
                                     </div>

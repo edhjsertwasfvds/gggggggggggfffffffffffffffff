@@ -476,6 +476,19 @@ async function initDatabase() {
             on_fear BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMPTZ DEFAULT NOW()
         );
+        CREATE TABLE IF NOT EXISTS drops (
+            id BIGSERIAL PRIMARY KEY,
+            external_id BIGINT,
+            name TEXT,
+            image TEXT,
+            price TEXT,
+            rarity_color TEXT,
+            avatar TEXT,
+            player_name TEXT,
+            steamid VARCHAR(32),
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            UNIQUE(external_id)
+        );
     `);
     await pool.query(`
         CREATE INDEX IF NOT EXISTS idx_panel_action_logs_user ON panel_action_logs(user_discord_id);
@@ -494,6 +507,8 @@ async function initDatabase() {
         CREATE INDEX IF NOT EXISTS idx_panel_fear_pun_status ON panel_fear_punishments(status);
         CREATE INDEX IF NOT EXISTS idx_vdf_history_steamid ON vdf_history(steamid);
         CREATE INDEX IF NOT EXISTS idx_vdf_history_check_id ON vdf_history(check_id);
+        CREATE INDEX IF NOT EXISTS idx_drops_created_at ON drops(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_drops_steamid ON drops(steamid);
     `);
     // Миграция: добавляем discord_id и launcher_api_key в старые таблицы panel_users
     try { await poolQuery('ALTER TABLE panel_users ADD COLUMN discord_id TEXT UNIQUE'); } catch (_) {}
@@ -1755,8 +1770,83 @@ module.exports = {
     getRegistrationStatus,
     getSessionsByUserId,
     getLinkedSteamAccounts,
-    getAllLinkedGroups
+    getAllLinkedGroups,
+    saveDrops,
+    getDrops,
+    getDropsCount
 };
+
+async function saveDrops(drops) {
+    if (!Array.isArray(drops) || drops.length === 0) return 0;
+    let inserted = 0;
+    for (const d of drops) {
+        const extId = Number(d.id);
+        if (!Number.isFinite(extId)) continue;
+        try {
+            await poolQuery(`
+                INSERT INTO drops (external_id, name, image, price, rarity_color, avatar, player_name, steamid, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (external_id) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    image = EXCLUDED.image,
+                    price = EXCLUDED.price,
+                    rarity_color = EXCLUDED.rarity_color,
+                    avatar = EXCLUDED.avatar,
+                    player_name = EXCLUDED.player_name,
+                    steamid = EXCLUDED.steamid,
+                    created_at = EXCLUDED.created_at
+            `, [
+                extId,
+                String(d.name || ''),
+                String(d.image || ''),
+                String(d.price || ''),
+                String(d.rarity_color || ''),
+                String(d.avatar || ''),
+                String(d.player_name || d.player || ''),
+                String(d.steamid || ''),
+                d.created_at ? new Date(d.created_at) : new Date()
+            ]);
+            inserted++;
+        } catch (e) {
+            console.error('[panelPg] saveDrops item error:', e && e.message);
+        }
+    }
+    return inserted;
+}
+
+async function getDrops(limit = 1000, offset = 0) {
+    try {
+        const { rows } = await poolQuery(
+            `SELECT id, external_id, name, image, price, rarity_color, avatar, player_name, steamid, created_at
+             FROM drops ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2`,
+            [limit, offset]
+        );
+        return rows.map(r => ({
+            id: r.external_id || r.id,
+            name: r.name,
+            image: r.image,
+            price: r.price,
+            rarity_color: r.rarity_color,
+            avatar: r.avatar,
+            player_name: r.player_name,
+            steamid: r.steamid,
+            created_at: r.created_at ? (r.created_at.toISOString ? r.created_at.toISOString() : String(r.created_at)) : null
+        }));
+    } catch (e) {
+        console.error('[panelPg] getDrops error:', e && e.message);
+        return [];
+    }
+}
+
+async function getDropsCount() {
+    try {
+        const { rows } = await poolQuery('SELECT COUNT(*)::int AS cnt FROM drops');
+        return rows[0]?.cnt || 0;
+    } catch (e) {
+        console.error('[panelPg] getDropsCount error:', e && e.message);
+        return 0;
+    }
+}
 
 async function getLinkedSteamAccounts(steamId) {
     try {

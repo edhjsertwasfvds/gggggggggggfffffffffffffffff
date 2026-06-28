@@ -332,6 +332,20 @@ function initDatabase() {
     )`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_vdf_history_steamid ON vdf_history(steamid)`);
     db.exec(`CREATE INDEX IF NOT EXISTS idx_vdf_history_check_id ON vdf_history(check_id)`);
+    db.exec(`CREATE TABLE IF NOT EXISTS drops (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        external_id INTEGER UNIQUE,
+        name TEXT,
+        image TEXT,
+        price TEXT,
+        rarity_color TEXT,
+        avatar TEXT,
+        player_name TEXT,
+        steamid TEXT,
+        created_at INTEGER NOT NULL
+    )`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_drops_created_at ON drops(created_at DESC)`);
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_drops_steamid ON drops(steamid)`);
     const bootstrapUsers = getBootstrapUsersFromEnv();
     if (bootstrapUsers.length) {
         for (const u of bootstrapUsers) {
@@ -961,8 +975,81 @@ module.exports = {
     replaceFearPunishments, getFearPunishmentsStats, getFearPunishmentsByAdmin,
     getStaffPunishmentsDaily, getPunishmentsTrend, getPunishmentsMonthComparison, getTicketsMonthComparison,
     getVdfHistoryChecks, getVdfHistoryDetails, getVdfContentByCheckId, saveVdfHistory,
-    getLinkedSteamAccounts, getAllLinkedGroups
+    getLinkedSteamAccounts, getAllLinkedGroups,
+    saveDrops, getDrops, getDropsCount
 };
+
+function saveDrops(drops) {
+    if (!Array.isArray(drops) || drops.length === 0) return 0;
+    const insert = db.prepare(`
+        INSERT INTO drops (external_id, name, image, price, rarity_color, avatar, player_name, steamid, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT (external_id) DO UPDATE SET
+            name = excluded.name,
+            image = excluded.image,
+            price = excluded.price,
+            rarity_color = excluded.rarity_color,
+            avatar = excluded.avatar,
+            player_name = excluded.player_name,
+            steamid = excluded.steamid,
+            created_at = excluded.created_at
+    `);
+    let inserted = 0;
+    const now = Date.now();
+    for (const d of drops) {
+        const extId = Number(d.id);
+        if (!Number.isFinite(extId)) continue;
+        try {
+            insert.run(
+                extId,
+                String(d.name || ''),
+                String(d.image || ''),
+                String(d.price || ''),
+                String(d.rarity_color || ''),
+                String(d.avatar || ''),
+                String(d.player_name || d.player || ''),
+                String(d.steamid || ''),
+                d.created_at ? new Date(d.created_at).getTime() : now
+            );
+            inserted++;
+        } catch (e) {
+            console.error('[panelSqlite] saveDrops item error:', e && e.message);
+        }
+    }
+    return inserted;
+}
+
+function getDrops(limit = 1000, offset = 0) {
+    try {
+        const rows = db.prepare(
+            `SELECT id, external_id, name, image, price, rarity_color, avatar, player_name, steamid, created_at
+             FROM drops ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`
+        ).all(limit, offset);
+        return rows.map(r => ({
+            id: r.external_id || r.id,
+            name: r.name,
+            image: r.image,
+            price: r.price,
+            rarity_color: r.rarity_color,
+            avatar: r.avatar,
+            player_name: r.player_name,
+            steamid: r.steamid,
+            created_at: r.created_at ? new Date(r.created_at).toISOString() : null
+        }));
+    } catch (e) {
+        console.error('[panelSqlite] getDrops error:', e && e.message);
+        return [];
+    }
+}
+
+function getDropsCount() {
+    try {
+        return db.prepare('SELECT COUNT(*) AS cnt FROM drops').get().cnt || 0;
+    } catch (e) {
+        console.error('[panelSqlite] getDropsCount error:', e && e.message);
+        return 0;
+    }
+}
 
 function getLinkedSteamAccounts(steamId) {
     try {

@@ -9,12 +9,18 @@ let readerPromise = null;
 async function getReader() {
     if (readerPromise) return readerPromise;
     readerPromise = new Promise((resolve, reject) => {
+        const t = setTimeout(() => {
+            readerPromise = null;
+            reject(new Error('GeoIP open timeout'));
+        }, 3000);
         if (!fs.existsSync(DB_PATH)) {
+            clearTimeout(t);
+            readerPromise = null;
             return reject(new Error('GeoLite2-City.mmdb not found'));
         }
         maxmind.open(DB_PATH, { watchForUpdates: true })
-            .then(reader => resolve(reader))
-            .catch(err => reject(err));
+            .then(reader => { clearTimeout(t); resolve(reader); })
+            .catch(err => { clearTimeout(t); readerPromise = null; reject(err); });
     });
     return readerPromise;
 }
