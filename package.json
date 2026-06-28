@@ -17,8 +17,10 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.3.1",
+    "maxmind": "^5.0.6",
     "pg": "^8.20.0",
     "sql.js": "^1.14.0",
+    "ua-parser-js": "^2.0.10",
     "ws": "^8.19.0"
   }
 }

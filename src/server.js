@@ -1474,108 +1474,15 @@ const server = http.createServer(async (req, res) => {
         return;
     }
 
-    // Discord OAuth: редирект на Discord
+    // Discord OAuth отключён — теперь вход только по логину/паролю
     if (req.url === '/api/auth/discord' && req.method === 'GET') {
-        const redirect = discordAuth.getDiscordLoginUrl('/dashboard');
-        if (!redirect) {
-            sendError(res, 503, 'NOT_CONFIGURED', 'Discord OAuth не настроен');
-            return;
-        }
-        res.writeHead(302, { Location: redirect.url });
-        res.end();
+        sendError(res, 404, 'NOT_FOUND', 'Discord OAuth отключён');
         return;
     }
-
-    // Discord OAuth: callback
     if (req.url.startsWith('/api/auth/discord/callback') && req.method === 'GET') {
-        const q = new URL(req.url, `http://${req.headers.host || 'localhost'}`).searchParams;
-        const code = q.get('code');
-        const state = q.get('state');
-        const error = q.get('error');
-        if (error) {
-            console.log('[Auth] Discord OAuth error:', error, q.get('error_description'));
-            res.writeHead(302, { Location: '/auth.html?error=discord_denied' });
-            res.end();
-            return;
-        }
-        const redirectPath = discordAuth.validateState(state);
-        if (!code || !redirectPath) {
-            res.writeHead(302, { Location: '/auth.html?error=invalid_state' });
-            res.end();
-            return;
-        }
-        try {
-            const loginInfo = discordAuth.isDiscordAuthConfigured() ? (discordAuth.getDiscordLoginUrl('/') || {}) : {};
-            console.log(`[Auth] Discord callback: host=${req.headers.host || 'unknown'}, redirect_uri=${loginInfo.url || 'n/a'}`);
-            const tokenData = await discordAuth.exchangeCode(code);
-            const discordUser = await discordAuth.getDiscordUser(tokenData.access_token);
-            const discordId = String(discordUser.id);
-            const username = discordUser.username || discordId;
-            const displayName = discordUser.global_name || discordUser.username || discordId;
-            const avatar = discordAuth.getDiscordAvatarUrl(discordId, discordUser.avatar) || discordAuth.getDiscordDefaultAvatarUrl(discordId);
-
-            // Определяем уровень: БД -> Discord-роли -> env default
-            const dbLevel = await db.getUserLevel(discordId);
-            let guildRoles = [];
-            try {
-                const member = await discordAuth.getGuildMember(discordId);
-                if (member && Array.isArray(member.roles)) guildRoles = member.roles;
-            } catch (e) {
-                console.warn('[Auth] Не удалось получить роли сервера:', e.message);
-            }
-            const level = discordAuth.resolveUserLevel(discordId, dbLevel, guildRoles);
-
-            const userId = await db.createOrUpdateDiscordUser(discordId, username, displayName, level);
-            const user = await db.getUserById(userId);
-            const session = await auth.createSession(user);
-
-            console.log(`[Auth] Discord авторизация: ${displayName} (id=${discordId}, userId=${userId}, level=${level})`);
-            try { db.logAction(userId, username, 'login', '', '', `discord_id=${discordId}, level=${level}`, clientIp); } catch (_) {}
-
-            const maxAge = Math.max(0, Math.floor((session.expiresAt - Date.now()) / 1000));
-            const cookieSecure = IS_PROD ? 'Secure; ' : '';
-            const cookie = `sessionToken=${encodeURIComponent(session.token)}; Path=/; SameSite=Lax; ${cookieSecure}Max-Age=${maxAge}`;
-            // Кодируем аватар и базовые данные в URL для первичной инициализации фронтенда
-            const encoded = Buffer.from(JSON.stringify({
-                id: userId,
-                username: user.username,
-                displayName: user.displayName,
-                level: user.level,
-                discordId,
-                avatar,
-                sessionToken: session.token,
-                expiresAt: session.expiresAt
-            })).toString('base64url');
-            res.writeHead(302, {
-                'Location': `${redirectPath}?discord_auth=${encoded}`,
-                'Set-Cookie': cookie
-            });
-            res.end();
-            return;
-        } catch (err) {
-            console.error('[Auth] Discord callback error:', err && err.stack ? err.stack : err.message);
-            let errorCode = 'discord_callback';
-            const msg = String(err.message || '').toLowerCase();
-            if (msg.includes('token error')) {
-                errorCode = 'discord_token';
-                if (msg.includes('invalid_client')) {
-                    errorCode = 'discord_client_secret';
-                } else if (msg.includes('invalid_grant') || msg.includes('invalid_request')) {
-                    errorCode = 'discord_token_grant';
-                } else if (msg.includes('redirect_uri') || msg.includes('invalid_redirect')) {
-                    errorCode = 'discord_uri_mismatch';
-                }
-            } else if (msg.includes('user error')) {
-                errorCode = 'discord_user';
-            } else if (msg.includes('database') || msg.includes('db') || msg.includes('sql')) {
-                errorCode = 'discord_db';
-            } else if (msg.includes('session')) {
-                errorCode = 'discord_session';
-            }
-            res.writeHead(302, { Location: `/auth.html?error=${errorCode}` });
-            res.end();
-            return;
-        }
+        res.writeHead(302, { Location: '/auth.html?error=oauth_disabled' });
+        res.end();
+        return;
     }
 
     // Авторизация по логину/паролю
@@ -1608,11 +1515,19 @@ const server = http.createServer(async (req, res) => {
                 if (!user) {
                     console.log(`[Auth] Неудачная попытка входа: ${username} от ${clientIp}`);
                     try { db.logAction(0, username, 'login_failed', '', '', 'Неверный логин или пароль', clientIp); } catch (_) {}
+                    await db.logLoginEvent(0, 'failed_login', { username }, { ip: clientIp, userAgent: req.headers['user-agent'] });
                     res.writeHead(401, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ error: 'Неверный логин или пароль' }));
                     return;
                 }
-                const session = await auth.createSession(user);
+                if (user.status !== 'active') {
+                    console.log(`[Auth] Вход заблокирован: ${user.username} (id=${user.id}), status=${user.status}`);
+                    await db.logLoginEvent(user.id, 'blocked_login', { status: user.status }, { ip: clientIp, userAgent: req.headers['user-agent'] });
+                    res.writeHead(403, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Аккаунт не активирован. Подтвердите регистрацию в Discord.' }));
+                    return;
+                }
+                const session = await auth.createSession(user, { ip: clientIp, userAgent: req.headers['user-agent'] });
                 console.log(`[Auth] Пользователь авторизован: ${user.username} (id=${user.id}), level=${user.level}`);
                 try { db.logAction(user.id, user.username, 'login', '', '', `level=${user.level}`, clientIp); } catch (_) {}
                 const maxAge = Math.max(0, Math.floor((session.expiresAt - Date.now()) / 1000));
@@ -1621,7 +1536,7 @@ const server = http.createServer(async (req, res) => {
                 res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': cookie });
                 res.end(JSON.stringify({
                     success: true,
-                    user: { id: user.id, username: user.username, displayName: user.displayName, level: user.level, steamId: user.steamId || null },
+                    user: { id: user.id, username: user.username, displayName: user.displayName, level: user.level, steamId: user.steamId || null, discordId: user.discordId || null },
                     sessionToken: session.token,
                     expiresAt: session.expiresAt
                 }));
@@ -1630,6 +1545,106 @@ const server = http.createServer(async (req, res) => {
                 res.end(JSON.stringify({ error: 'Invalid JSON' }));
             }
         });
+        return;
+    }
+
+    // Регистрация нового пользователя (через Steam ID + Discord подтверждение)
+    if (req.url === '/api/auth/register' && req.method === 'POST') {
+        let body = '';
+        let bodySize = 0;
+        let bodyTooLarge = false;
+        req.on('data', chunk => {
+            if (bodyTooLarge) return;
+            bodySize += chunk.length;
+            if (bodySize > MAX_REQUEST_BODY_BYTES) {
+                bodyTooLarge = true;
+                try { sendError(res, 413, 'PAYLOAD_TOO_LARGE', 'Payload too large'); } catch (_) {}
+                req.destroy();
+                return;
+            }
+            body += chunk;
+        });
+        req.on('end', async () => {
+            try {
+                const { username, password, steamId } = JSON.parse(body);
+                if (!username || !password || !steamId) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Введите логин, пароль и Steam ID' }));
+                    return;
+                }
+                if (username.length < 2 || username.length > 32 || !/^[a-zA-Z0-9_\-а-яА-ЯёЁ]+$/.test(username)) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Логин: 2-32 символа, буквы/цифры/_/-' }));
+                    return;
+                }
+                if (password.length < 6) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Пароль минимум 6 символов' }));
+                    return;
+                }
+                if (!/^765611[0-9]{12}$/.test(steamId)) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Неверный формат Steam ID' }));
+                    return;
+                }
+                // Check username uniqueness
+                try {
+                    const allUsers = await db.getAllUsers();
+                    if (allUsers.some(u => u.username === username)) {
+                        res.writeHead(409, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Пользователь с таким логином уже существует' }));
+                        return;
+                    }
+                } catch (_) {
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Ошибка проверки логина' }));
+                    return;
+                }
+                const existingBySteam = await db.getUserBySteamId(steamId);
+                if (existingBySteam) {
+                    res.writeHead(409, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Steam ID уже зарегистрирован' }));
+                    return;
+                }
+                const userId = await db.createPendingUser(username, password, username, steamId);
+                await db.createBotTask('resolve_discord_by_steam', { userId, steamId });
+                await db.logLoginEvent(userId, 'register_started', { username, steamId }, { ip: clientIp, userAgent: req.headers['user-agent'] });
+                console.log(`[Auth] Регистрация начата: ${username} (id=${userId}, steamId=${steamId})`);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    success: true,
+                    message: 'Регистрация начата. Для активации аккаунта подтвердите её в Discord (личное сообщение от бота).',
+                    userId
+                }));
+            } catch (err) {
+                if (err.message && err.message.includes('UNIQUE')) {
+                    res.writeHead(409, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: 'Пользователь или Steam ID уже зарегистрирован' }));
+                } else {
+                    console.error('[Auth] Register error:', err);
+                    res.writeHead(500, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ error: err.message }));
+                }
+            }
+        });
+        return;
+    }
+
+    // Проверка статуса регистрации
+    if (req.url === '/api/auth/registration-status' && req.method === 'GET') {
+        const session = await requireSession(req, res, 0);
+        if (!session) return;
+        try {
+            const user = await db.getUserById(session.userId);
+            const regStatus = await db.getRegistrationStatus(session.userId);
+            sendJson(res, 200, {
+                status: user.status,
+                registration: regStatus || null
+            });
+        } catch (err) {
+            console.error('[Auth] Registration status error:', err);
+            sendError(res, 500, 'INTERNAL_ERROR', err.message);
+        }
         return;
     }
 
@@ -2078,15 +2093,22 @@ const server = http.createServer(async (req, res) => {
                 const validation = await auth.validateSession(sessionToken);
                 
                 if (validation.valid) {
+                    const s = validation.session;
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({
                         valid: true,
                         session: {
-                            userId: validation.session.userId,
-                            username: validation.session.username,
-                            displayName: validation.session.displayName,
-                            level: validation.session.level,
-                            expiresAt: validation.session.expiresAt
+                            userId: s.userId,
+                            username: s.username,
+                            displayName: s.displayName,
+                            level: s.level,
+                            expiresAt: s.expiresAt,
+                            ipAddress: s.ipAddress || null,
+                            country: s.country || null,
+                            city: s.city || null,
+                            device: s.device || null,
+                            os: s.os || null,
+                            browser: s.browser || null
                         }
                     }));
                 } else {
@@ -2137,7 +2159,97 @@ const server = http.createServer(async (req, res) => {
         });
         return;
     }
-    
+
+    // Выйти из всех сессий текущего пользователя
+    if (req.url === '/api/auth/logout-all' && req.method === 'POST') {
+        const session = await requireSession(req, res, 0);
+        if (!session) return;
+        try {
+            const deleted = await auth.deleteUserSessions(session.userId, session.token);
+            await db.logLoginEvent(session.userId, 'logout_all', { deleted }, { ip: clientIp, userAgent: req.headers['user-agent'] });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, deleted }));
+        } catch (err) {
+            console.error('[Auth] Logout-all error:', err);
+            sendError(res, 500, 'INTERNAL_ERROR', err.message);
+        }
+        return;
+    }
+
+    // Получить свои сессии
+    if (req.url === '/api/auth/sessions' && req.method === 'GET') {
+        const session = await requireSession(req, res, 0);
+        if (!session) return;
+        try {
+            const sessions = await auth.getUserSessions(session.userId);
+            const logs = await auth.getUserLoginLogs(session.userId, 20);
+            sendJson(res, 200, { sessions, logs });
+        } catch (err) {
+            console.error('[Auth] Sessions error:', err);
+            sendError(res, 500, 'INTERNAL_ERROR', err.message);
+        }
+        return;
+    }
+
+    // Получить все сессии (только LVL 4+)
+    if (req.url === '/api/auth/sessions/all' && req.method === 'GET') {
+        const session = await requireSession(req, res, 4);
+        if (!session) return;
+        try {
+            const sessions = await auth.getAllSessions();
+            sendJson(res, 200, { sessions });
+        } catch (err) {
+            console.error('[Auth] All sessions error:', err);
+            sendError(res, 500, 'INTERNAL_ERROR', err.message);
+        }
+        return;
+    }
+
+    // Получить сессии конкретного пользователя (только LVL 4+)
+    const sessionsByUserMatch = req.url.match(/^\/api\/auth\/sessions\/user\/(\d+)$/);
+    if (sessionsByUserMatch && req.method === 'GET') {
+        const session = await requireSession(req, res, 4);
+        if (!session) return;
+        try {
+            const targetUserId = parseInt(sessionsByUserMatch[1], 10);
+            const sessions = await auth.getUserSessions(targetUserId);
+            const logs = await auth.getUserLoginLogs(targetUserId, 50);
+            const targetUser = await db.getUserById(targetUserId);
+            sendJson(res, 200, { user: targetUser, sessions, logs });
+        } catch (err) {
+            console.error('[Auth] User sessions error:', err);
+            sendError(res, 500, 'INTERNAL_ERROR', err.message);
+        }
+        return;
+    }
+
+    // Отозвать любую сессию (свою или LVL 4+)
+    const revokeSessionMatch = req.url.match(/^\/api\/auth\/sessions\/revoke\/([^/]+)$/);
+    if (revokeSessionMatch && req.method === 'POST') {
+        const session = await requireSession(req, res, 0);
+        if (!session) return;
+        try {
+            const token = decodeURIComponent(revokeSessionMatch[1]);
+            const targetSession = await auth.getSession(token);
+            if (!targetSession) {
+                sendError(res, 404, 'NOT_FOUND', 'Сессия не найдена');
+                return;
+            }
+            if (targetSession.userId !== session.userId && session.level < 4) {
+                sendError(res, 403, 'FORBIDDEN', 'Недостаточно прав');
+                return;
+            }
+            await auth.deleteSession(token);
+            await db.logLoginEvent(session.userId, 'revoke_session', { targetUserId: targetSession.userId, targetToken: token.slice(0, 8) + '...' }, { ip: clientIp, userAgent: req.headers['user-agent'] });
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true }));
+        } catch (err) {
+            console.error('[Auth] Revoke session error:', err);
+            sendError(res, 500, 'INTERNAL_ERROR', err.message);
+        }
+        return;
+    }
+
     if (req.url === '/api/logs' && req.method === 'GET') {
         const session = await getSessionFromReq(req);
         if (!session || session.level < USER_LEVEL_WHITELIST) {

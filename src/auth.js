@@ -5,6 +5,8 @@
 
 const crypto = require('crypto');
 const db = require('./database');
+const { lookupIp } = require('./geoip');
+const { parseUserAgent } = require('./ua-parser');
 
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 7 дней
 
@@ -20,16 +22,38 @@ function rowToSession(row) {
         username: row.username,
         displayName: row.display_name,
         level: row.level,
+        ipAddress: row.ip_address || null,
+        userAgent: row.user_agent || null,
+        country: row.country || null,
+        city: row.city || null,
+        device: row.device || null,
+        os: row.os || null,
+        browser: row.browser || null,
         createdAt: row.created_at,
         expiresAt: row.expires_at,
         lastActivity: row.last_activity
     };
 }
 
-async function createSession(userData) {
+async function enrichSessionInfo(ip, userAgent) {
+    const { country, city } = await lookupIp(ip);
+    const { device, os, browser } = parseUserAgent(userAgent);
+    return {
+        ip: ip || null,
+        userAgent: userAgent || null,
+        country: country || null,
+        city: city || null,
+        device: device || null,
+        os: os || null,
+        browser: browser || null
+    };
+}
+
+async function createSession(userData, requestInfo = {}) {
     const sessionToken = generateSessionToken();
     const now = Date.now();
     const expiresAt = now + SESSION_TTL;
+    const sessionInfo = await enrichSessionInfo(requestInfo.ip, requestInfo.userAgent);
 
     await db.saveSession(
         sessionToken,
@@ -39,8 +63,11 @@ async function createSession(userData) {
         userData.level,
         expiresAt,
         now,
-        now
+        now,
+        sessionInfo
     );
+
+    await db.logLoginEvent(userData.id, 'login', null, sessionInfo);
 
     return {
         token: sessionToken,
@@ -48,6 +75,7 @@ async function createSession(userData) {
         username: userData.username,
         displayName: userData.displayName || userData.username,
         level: userData.level,
+        ...sessionInfo,
         createdAt: now,
         expiresAt,
         lastActivity: now
@@ -75,6 +103,15 @@ async function getSession(sessionToken) {
         if (Number.isFinite(Number(user.level))) session.level = Number(user.level);
     } catch (_) {}
 
+    const sessionInfo = {
+        ip: session.ipAddress,
+        userAgent: session.userAgent,
+        country: session.country,
+        city: session.city,
+        device: session.device,
+        os: session.os,
+        browser: session.browser
+    };
     await db.saveSession(
         sessionToken,
         session.userId,
@@ -83,7 +120,8 @@ async function getSession(sessionToken) {
         session.level,
         session.expiresAt,
         session.createdAt,
-        Date.now()
+        Date.now(),
+        sessionInfo
     );
     session.lastActivity = Date.now();
     return session;
@@ -129,6 +167,31 @@ async function getSessionStats() {
     };
 }
 
+async function getUserSessions(userId) {
+    const rows = await db.getSessionsByUserId(userId);
+    return rows.map(row => rowToSession(row));
+}
+
+async function getAllSessions() {
+    const rows = await db.getActiveSessionsFromDb();
+    return rows.map(row => rowToSession(row));
+}
+
+async function deleteUserSessions(userId, exceptToken = null) {
+    const sessions = await getUserSessions(userId);
+    let deleted = 0;
+    for (const s of sessions) {
+        if (exceptToken && s.token === exceptToken) continue;
+        await deleteSession(s.token);
+        deleted++;
+    }
+    return deleted;
+}
+
+async function getUserLoginLogs(userId, limit = 50) {
+    return db.getLoginLogsByUserId(userId, limit);
+}
+
 setInterval(() => {
     cleanupExpiredSessions().catch(() => {});
 }, 60 * 60 * 1000);
@@ -139,5 +202,10 @@ module.exports = {
     deleteSession,
     validateSession,
     cleanupExpiredSessions,
-    getSessionStats
+    getSessionStats,
+    getUserSessions,
+    getAllSessions,
+    deleteUserSessions,
+    getUserLoginLogs,
+    enrichSessionInfo
 };
