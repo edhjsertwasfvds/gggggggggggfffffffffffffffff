@@ -265,6 +265,28 @@ async function initDatabase() {
         BEGIN
             IF NOT EXISTS (
                 SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_sessions' AND column_name = 'username'
+            ) THEN
+                ALTER TABLE panel_sessions ADD COLUMN username TEXT;
+                UPDATE panel_sessions SET username = '' WHERE username IS NULL;
+                ALTER TABLE panel_sessions ALTER COLUMN username SET NOT NULL;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_sessions' AND column_name = 'display_name'
+            ) THEN
+                ALTER TABLE panel_sessions ADD COLUMN display_name TEXT;
+                UPDATE panel_sessions SET display_name = username WHERE display_name IS NULL;
+                ALTER TABLE panel_sessions ALTER COLUMN display_name SET NOT NULL;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_sessions' AND column_name = 'level'
+            ) THEN
+                ALTER TABLE panel_sessions ADD COLUMN level INTEGER NOT NULL DEFAULT 1;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
                 WHERE table_name = 'panel_sessions' AND column_name = 'ip_address'
             ) THEN
                 ALTER TABLE panel_sessions ADD COLUMN ip_address TEXT;
@@ -305,6 +327,45 @@ async function initDatabase() {
             ) THEN
                 ALTER TABLE panel_sessions ADD COLUMN browser TEXT;
             END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_sessions' AND column_name = 'expires_at'
+            ) THEN
+                ALTER TABLE panel_sessions ADD COLUMN expires_at BIGINT NOT NULL DEFAULT 0;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_sessions' AND column_name = 'created_at'
+            ) THEN
+                ALTER TABLE panel_sessions ADD COLUMN created_at BIGINT NOT NULL DEFAULT 0;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_sessions' AND column_name = 'last_activity'
+            ) THEN
+                ALTER TABLE panel_sessions ADD COLUMN last_activity BIGINT NOT NULL DEFAULT 0;
+            END IF;
+            -- Drop NOT NULL from any extra column that might cause INSERT failures
+            DECLARE
+                drop_not_null_sql TEXT;
+            BEGIN
+                SELECT COALESCE(
+                    string_agg(
+                        format('ALTER TABLE panel_sessions ALTER COLUMN %I DROP NOT NULL', column_name),
+                        '; '
+                    ),
+                    ''
+                )
+                INTO drop_not_null_sql
+                FROM information_schema.columns
+                WHERE table_name = 'panel_sessions'
+                  AND column_name NOT IN ('token', 'user_id')
+                  AND is_nullable = 'NO';
+
+                IF drop_not_null_sql <> '' THEN
+                    EXECUTE drop_not_null_sql;
+                END IF;
+            END;
         END
         $$;
         CREATE TABLE IF NOT EXISTS panel_login_logs (
