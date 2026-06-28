@@ -169,6 +169,29 @@ async function initDatabase() {
         BEGIN
             IF NOT EXISTS (
                 SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'password_hash'
+            ) THEN
+                ALTER TABLE panel_users ADD COLUMN password_hash TEXT;
+                UPDATE panel_users SET password_hash = '' WHERE password_hash IS NULL;
+                ALTER TABLE panel_users ALTER COLUMN password_hash SET NOT NULL;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'display_name'
+            ) THEN
+                ALTER TABLE panel_users ADD COLUMN display_name TEXT;
+                UPDATE panel_users SET display_name = username WHERE display_name IS NULL;
+                ALTER TABLE panel_users ALTER COLUMN display_name SET NOT NULL;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'panel_users' AND column_name = 'created_at'
+            ) THEN
+                ALTER TABLE panel_users ADD COLUMN created_at BIGINT NOT NULL DEFAULT 0;
+                UPDATE panel_users SET created_at = EXTRACT(EPOCH FROM NOW()) * 1000 WHERE created_at = 0;
+            END IF;
+            IF NOT EXISTS (
+                SELECT 1 FROM information_schema.columns
                 WHERE table_name = 'panel_users' AND column_name = 'level'
             ) THEN
                 ALTER TABLE panel_users ADD COLUMN level INTEGER NOT NULL DEFAULT 1;
