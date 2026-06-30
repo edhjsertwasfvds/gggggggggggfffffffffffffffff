@@ -185,6 +185,9 @@ async function acquire(sem, fn) {
     });
 }
 
+const _fearBanCache = new Map();
+const FEAR_BAN_CACHE_TTL = 5 * 60 * 1000;
+
 async function checkFear(steamid) {
     const now = Date.now();
     const cached = _fearCache.get(steamid);
@@ -206,6 +209,31 @@ async function checkFear(steamid) {
         }
     } catch (e) {
         console.log(`[Checker] Fear ${steamid}: error ${e.message}, url=${profileUrl}`);
+    }
+    return null;
+}
+
+async function checkFearBan(steamid) {
+    const now = Date.now();
+    const cached = _fearBanCache.get(steamid);
+    if (cached && now - cached.ts < FEAR_BAN_CACHE_TTL) return cached.data;
+
+    const banUrl = `${FEAR_API_BASE}/bans/check/${steamid}`;
+    try {
+        const res = await getJson(banUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json'
+            },
+            timeout: 5000
+        });
+        console.log(`[Checker] FearBan ${steamid}: status=${res.status}, hasData=${Boolean(res.data)}, url=${banUrl}`);
+        if (res.status === 200 && res.data) {
+            _fearBanCache.set(steamid, { data: res.data, ts: now });
+            return res.data;
+        }
+    } catch (e) {
+        console.log(`[Checker] FearBan ${steamid}: error ${e.message}, url=${banUrl}`);
     }
     return null;
 }
@@ -312,8 +340,9 @@ async function checkAccounts(steamids) {
     }
 
     const checkOne = async (sid) => {
-        const [fear, yooma] = await Promise.all([
+        const [fear, fearBan, yooma] = await Promise.all([
             acquire(FEAR_SEM, () => checkFear(sid)),
+            acquire(FEAR_SEM, () => checkFearBan(sid)),
             acquire(YOOMA_SEM, () => checkYooma(sid))
         ]);
         const steamBan = bansMap[sid] || {};
@@ -326,9 +355,18 @@ async function checkAccounts(steamids) {
         const nickname = summary.personaname || sid;
         const avatar = summary.avatarfull || summary.avatar || '';
 
-        const onFear = fear !== null;
-        const banInfo = fear ? (fear.banInfo || {}) : {};
-        const fearBanned = banInfo.isBanned || false;
+        const onFear = fear !== null || fearBan !== null;
+
+        const profileBanInfo = fear ? (fear.banInfo || {}) : {};
+        const checkBanInfo = fearBan || {};
+        let banInfo = {};
+        if (checkBanInfo.isBanned || checkBanInfo.is_banned || checkBanInfo.banned) {
+            banInfo = checkBanInfo;
+        } else if (profileBanInfo.isBanned) {
+            banInfo = profileBanInfo;
+        }
+
+        const fearBanned = Boolean(banInfo.isBanned || banInfo.is_banned || banInfo.banned);
         const fearReason = fearBanned ? (banInfo.reason || '') : '';
         const fearUnbanTs = fearBanned ? (banInfo.unbanTimestamp || null) : null;
         let fearUnban = '';
