@@ -5623,8 +5623,7 @@ function updateDataInBackground() {
         const hasValidData = ctx.totalPlayers > 0;
         if (hasValidData) {
             try {
-                const serverData = Array.isArray(servers) ? servers.map(s => ({ name: s.name || s.hostname, players: (s.players || []).length })) : [];
-                Promise.resolve(db.saveServerActivity(ctx.totalPlayers, ctx.totalAdmins, serverData)).catch(() => {});
+                Promise.resolve(db.saveServerActivity(ctx.totalPlayers, ctx.totalAdmins)).catch(() => {});
             } catch (_) {}
         }
         if (hasValidData || !prev) {

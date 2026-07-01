@@ -824,12 +824,12 @@ async function deleteBanComment(commentId, authorId, userLevel) {
     return r.rowCount > 0;
 }
 
-async function saveServerActivity(totalPlayers, totalAdmins, serverData) {
+async function saveServerActivity(totalPlayers, totalAdmins) {
     const now = Date.now();
     const hour = new Date(now).getHours();
     await poolQuery(
         'INSERT INTO panel_server_activity (timestamp, hour, total_players, total_admins, server_data) VALUES ($1,$2,$3,$4,$5)',
-        [now, hour, totalPlayers, totalAdmins, JSON.stringify(serverData)]
+        [now, hour, totalPlayers, totalAdmins, '[]']
     );
 }
 
