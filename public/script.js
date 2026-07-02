@@ -5198,7 +5198,7 @@ function startFearReportsIfNeeded() {
 
 function connectFearReportWs() {
     if (_fearReportWs) { try { _fearReportWs.close(); } catch(_){} }
-    _fearReportWs = new WebSocket('wss://api.fearproject.ru/socket.io/?EIO=4&transport=websocket');
+    _fearReportWs = new WebSocket('wss://fearproject.ru/api/socket.io/?EIO=4&transport=websocket');
     _fearReportWs.onopen = () => {
         _fearReportWs.send('40');
     };

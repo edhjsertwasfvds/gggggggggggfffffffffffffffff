@@ -166,17 +166,21 @@ const staffStatsService = require('./services/staffStats');
 const moderatorPlayersSnapshot = require('./services/moderatorPlayersSnapshot');
 const { attachWss } = require('./ws');
 
-const FEAR_API_HOST = 'api.fearproject.ru';
+const FEAR_API_HOST = 'fearproject.ru';
+const FEAR_API_HOST_OLD = 'api.fearproject.ru';
+const FEAR_API_PREFIX = '/api';
+const FEAR_API_BASE = `https://${FEAR_API_HOST}${FEAR_API_PREFIX}`;
 const FEAR_ADMINS_LIST_PATH = '/admins/';
 const FEAR_ADMINS_EDIT_PATH = '/admins/edit';
 
 function fearAdminsRequest(pathname, method, headers = {}, body = null) {
     return new Promise((resolve, reject) => {
         const payload = body ? JSON.stringify(body) : null;
+        const fullPath = FEAR_API_PREFIX + pathname;
         const req = https.request({
             protocol: 'https:',
             hostname: FEAR_API_HOST,
-            path: pathname,
+            path: fullPath,
             method,
             headers: {
                 Accept: '*/*',
@@ -260,7 +264,7 @@ const bannedOnlineCache = {
 // Прямое получение ленты дропов из Fear API (без записи в БД).
 async function fetchDropsFeed() {
     return new Promise((resolve) => {
-        const apiUrl = `https://api.fearproject.ru/drops/feed?page=1&limit=100`;
+        const apiUrl = `https://${FEAR_API_HOST}${FEAR_API_PREFIX}/drops/feed?page=1&limit=100`;
         const req = https.get(apiUrl, {
             headers: {
                 'Accept': '*/*',
@@ -4215,8 +4219,7 @@ const server = http.createServer(async (req, res) => {
 
     // --- Fear Reports proxy ---
     if (req.url === '/api/fear-reports' && req.method === 'GET') {
-        const apiUrl = 'https://api.fearproject.ru/reports/recent';
-        https.get(apiUrl, {
+        const apiUrl = `https://${FEAR_API_HOST}${FEAR_API_PREFIX}/reports/recent`;        https.get(apiUrl, {
             headers: {
                 'Accept': '*/*',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
@@ -4625,8 +4628,7 @@ const server = http.createServer(async (req, res) => {
 
     // Активные репорты: типы + флаги (общий JSON для веба и оверлея)
     if (parsedUrl.pathname === '/api/active-reports' && req.method === 'GET') {
-        const apiUrl = 'https://api.fearproject.ru/reports/recent';
-        https.get(apiUrl, {
+        const apiUrl = `https://${FEAR_API_HOST}${FEAR_API_PREFIX}/reports/recent`;        https.get(apiUrl, {
             headers: {
                 'Accept': '*/*',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',

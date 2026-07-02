@@ -508,6 +508,9 @@ async function initDatabase() {
         -- Migration: старые деплои могут не иметь колонки external_id
         ALTER TABLE drops ADD COLUMN IF NOT EXISTS external_id BIGINT;
         CREATE UNIQUE INDEX IF NOT EXISTS idx_drops_external_id_unique ON drops(external_id);
+        ALTER TABLE drops ADD COLUMN IF NOT EXISTS avatar TEXT;
+        ALTER TABLE drops ADD COLUMN IF NOT EXISTS player_name TEXT;
+        ALTER TABLE panel_action_logs ADD COLUMN IF NOT EXISTS ip_address TEXT;
 
         CREATE TABLE IF NOT EXISTS drops (
             id BIGSERIAL PRIMARY KEY,

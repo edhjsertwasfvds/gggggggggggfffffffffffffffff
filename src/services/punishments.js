@@ -1,6 +1,7 @@
 const https = require('https');
 
-const API_BASE = 'https://api.fearproject.ru';
+const API_BASE = 'https://fearproject.ru/api';
+const API_BASE_OLD = 'https://api.fearproject.ru';
 
 const punishmentsCache = new Map(); // key -> { data, ts }
 const PUNISHMENTS_CACHE_TTL_MS = 3 * 60 * 1000;
@@ -90,7 +91,11 @@ function cacheKey(steamId, mode) {
 
 async function fetchPunishmentsPage(q, type, page, limit) {
     const url = `${API_BASE}/punishments/search?q=${encodeURIComponent(q)}&type=${type}&page=${page}&limit=${limit}`;
-    const res = await httpsGetJson(url, PUNISHMENTS_REQ_TIMEOUT_MS, 2);
+    let res = await httpsGetJson(url, PUNISHMENTS_REQ_TIMEOUT_MS, 2);
+    if ((!res || !Array.isArray(res.punishments)) && API_BASE !== API_BASE_OLD) {
+        const fallbackUrl = `${API_BASE_OLD}/punishments/search?q=${encodeURIComponent(q)}&type=${type}&page=${page}&limit=${limit}`;
+        res = await httpsGetJson(fallbackUrl, PUNISHMENTS_REQ_TIMEOUT_MS, 2);
+    }
     if (!res || !Array.isArray(res.punishments)) return { total: 0, punishments: [] };
     return {
         total: parseInt(res.total != null ? String(res.total) : '0', 10) || res.punishments.length,

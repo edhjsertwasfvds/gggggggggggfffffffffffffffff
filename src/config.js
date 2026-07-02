@@ -3,7 +3,7 @@ const crypto = require('crypto');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const PORT = process.env.PORT || 3000;
-const API_URL = 'https://api.fearproject.ru/servers';
+const API_URL = 'https://fearproject.ru/api/servers';
 const STEAM_API_KEY = process.env.STEAM_API_KEY || '';
 const FEAR_COOKIE = process.env.FEAR_COOKIE || '';
 const FEAR_ACCESS_TOKEN = process.env.FEAR_ACCESS_TOKEN || (() => {

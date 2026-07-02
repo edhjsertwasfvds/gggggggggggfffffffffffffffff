@@ -27,27 +27,37 @@ function fetchFearRecentReportsArray(fearAccessToken) {
             resolve([]);
             return;
         }
-        const apiUrl = 'https://api.fearproject.ru/reports/recent';
-        https.get(apiUrl, {
-            headers: {
-                Accept: '*/*',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
-                Origin: 'https://fearproject.ru',
-                Referer: 'https://fearproject.ru/',
-                ...(fearAccessToken ? { Cookie: `access_token=${fearAccessToken}` } : {})
-            }
-        }, (apiRes) => {
-            let data = '';
-            apiRes.on('data', (c) => { data += c; });
-            apiRes.on('end', () => {
-                try {
-                    const j = JSON.parse(data);
-                    resolve(Array.isArray(j) ? j : []);
-                } catch (_) {
+        const hdrs = {
+            Accept: '*/*',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+            Origin: 'https://fearproject.ru',
+            Referer: 'https://fearproject.ru/',
+            ...(fearAccessToken ? { Cookie: `access_token=${fearAccessToken}` } : {})
+        };
+        function doFetch(hostname, pathStr, retried) {
+            https.get(`https://${hostname}${pathStr}`, { headers: hdrs }, (apiRes) => {
+                let data = '';
+                apiRes.on('data', (c) => { data += c; });
+                apiRes.on('end', () => {
+                    try {
+                        const j = JSON.parse(data);
+                        if (Array.isArray(j) && j.length > 0) { resolve(j); return; }
+                    } catch (_) {}
+                    if (!retried) {
+                        doFetch('api.fearproject.ru', '/reports/recent', true);
+                    } else {
+                        resolve([]);
+                    }
+                });
+            }).on('error', () => {
+                if (!retried) {
+                    doFetch('api.fearproject.ru', '/reports/recent', true);
+                } else {
                     resolve([]);
                 }
             });
-        }).on('error', () => resolve([]));
+        }
+        doFetch('fearproject.ru', '/api/reports/recent', false);
     });
 }
 

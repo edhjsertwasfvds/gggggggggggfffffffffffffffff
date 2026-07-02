@@ -16,7 +16,8 @@ const db = require('./database');
 const { FEAR_ACCESS_TOKEN } = require('./config');
 
 const STEAM_API_KEY = process.env.STEAM_API_KEY || '';
-const FEAR_API_BASE = process.env.FEAR_API_BASE || 'https://api.fearproject.ru';
+const FEAR_API_BASE = process.env.FEAR_API_BASE || 'https://fearproject.ru/api';
+const FEAR_API_BASE_OLD = process.env.FEAR_API_BASE_OLD || 'https://api.fearproject.ru';
 const YOOMA_API = 'https://yooma.su/api/public/read/punishments';
 
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
@@ -56,6 +57,25 @@ function getJson(urlStr, options = {}) {
         if (options.body) req.write(options.body);
         req.end();
     });
+}
+
+async function getJsonWithFallback(urlStr, options = {}) {
+    try {
+        const res = await getJson(urlStr, options);
+        if (res.status === 200) return res;
+        if (FEAR_API_BASE in urlStr && FEAR_API_BASE !== FEAR_API_BASE_OLD) {
+            const fallback = urlStr.replace(FEAR_API_BASE, FEAR_API_BASE_OLD);
+            const res2 = await getJson(fallback, options);
+            if (res2.status === 200) return res2;
+        }
+        return res;
+    } catch (e) {
+        if (FEAR_API_BASE in urlStr && FEAR_API_BASE !== FEAR_API_BASE_OLD) {
+            const fallback = urlStr.replace(FEAR_API_BASE, FEAR_API_BASE_OLD);
+            try { return await getJson(fallback, options); } catch (_) {}
+        }
+        throw e;
+    }
 }
 
 function parseVdfSteamids(text) {
@@ -208,7 +228,7 @@ async function checkFear(steamid) {
 
     const profileUrl = `${FEAR_API_BASE}/profile/${steamid}`;
     try {
-        const res = await getJson(profileUrl, {
+        const res = await getJsonWithFallback(profileUrl, {
             headers: fearAuthHeaders(),
             timeout: 5000
         });
@@ -230,7 +250,7 @@ async function checkFearBan(steamid) {
 
     const banUrl = `${FEAR_API_BASE}/bans/check/${steamid}`;
     try {
-        const res = await getJson(banUrl, {
+        const res = await getJsonWithFallback(banUrl, {
             headers: fearAuthHeaders(),
             timeout: 5000
         });
@@ -257,7 +277,7 @@ async function checkFearPunishments(steamid) {
         const qs = '?' + querystring.stringify({ q: steamid, type: 1, page, limit });
         const url = `${FEAR_API_BASE}/punishments/search${qs}`;
         try {
-            const res = await getJson(url, {
+            const res = await getJsonWithFallback(url, {
                 headers: fearAuthHeaders(),
                 timeout: 5000
             });

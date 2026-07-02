@@ -130,38 +130,55 @@ async function refreshStaffList() {
         } else {
             const cookie = `access_token=${config.FEAR_ACCESS_TOKEN}`;
             const admins = await new Promise((resolve) => {
-                const req = https.get('https://api.fearproject.ru/admins', {
-                    timeout: config.REQUEST_TIMEOUT_SLOW,
-                    headers: {
-                        'Accept': 'application/json, text/plain, */*',
-                        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
-                        'sec-ch-ua': '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
-                        'sec-ch-ua-mobile': '?0',
-                        'sec-ch-ua-platform': '"Windows"',
-                        'Origin': 'https://fearproject.ru',
-                        'Referer': 'https://fearproject.ru/',
-                        'Sec-Fetch-Dest': 'empty',
-                        'Sec-Fetch-Mode': 'cors',
-                        'Sec-Fetch-Site': 'same-site',
-                        'Cookie': cookie
-                    }
-                }, (apiRes) => {
-                    let data = '';
-                    apiRes.on('data', c => data += c);
-                    apiRes.on('end', () => {
-                        try {
-                            const parsed = JSON.parse(data);
-                            console.log(`[Staff] Fear API status=${apiRes.statusCode}, count=${Array.isArray(parsed) ? parsed.length : 'N/A'}, sample=`, Array.isArray(parsed) && parsed.length > 0 ? parsed[0].name || parsed[0].nickname || parsed[0].steamId : parsed);
-                            resolve(Array.isArray(parsed) ? parsed : []);
-                        } catch (e) {
-                            console.log(`[Staff] Fear API status=${apiRes.statusCode}, parse error: ${e?.message}, data=${data.slice(0, 200)}`);
+                const headers = {
+                    'Accept': 'application/json, text/plain, */*',
+                    'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36',
+                    'sec-ch-ua': '"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"',
+                    'sec-ch-ua-mobile': '?0',
+                    'sec-ch-ua-platform': '"Windows"',
+                    'Origin': 'https://fearproject.ru',
+                    'Referer': 'https://fearproject.ru/',
+                    'Sec-Fetch-Dest': 'empty',
+                    'Sec-Fetch-Mode': 'cors',
+                    'Sec-Fetch-Site': 'same-site',
+                    'Cookie': cookie
+                };
+                function doFetch(hostname, pathStr, retried) {
+                    const req = https.get(`https://${hostname}${pathStr}`, {
+                        timeout: config.REQUEST_TIMEOUT_SLOW,
+                        headers
+                    }, (apiRes) => {
+                        let data = '';
+                        apiRes.on('data', c => data += c);
+                        apiRes.on('end', () => {
+                            try {
+                                const parsed = JSON.parse(data);
+                                console.log(`[Staff] Fear API status=${apiRes.statusCode}, count=${Array.isArray(parsed) ? parsed.length : 'N/A'}, sample=`, Array.isArray(parsed) && parsed.length > 0 ? parsed[0].name || parsed[0].nickname || parsed[0].steamId : parsed);
+                                resolve(Array.isArray(parsed) ? parsed : []);
+                            } catch (e) {
+                                console.log(`[Staff] Fear API status=${apiRes.statusCode}, parse error: ${e?.message}, data=${data.slice(0, 200)}`);
+                                if (!retried) {
+                                    console.log(`[Staff] Retrying with old API host...`);
+                                    doFetch('api.fearproject.ru', '/admins', true);
+                                } else {
+                                    resolve([]);
+                                }
+                            }
+                        });
+                    });
+                    req.on('error', (err) => {
+                        console.log('[Staff] Fear API request error:', err?.message);
+                        if (!retried) {
+                            console.log(`[Staff] Retrying with old API host...`);
+                            doFetch('api.fearproject.ru', '/admins', true);
+                        } else {
                             resolve([]);
                         }
                     });
-                });
-                req.on('error', (err) => { console.log('[Staff] Fear API request error:', err?.message); resolve([]); });
-                req.on('timeout', () => { console.log('[Staff] Fear API timeout'); try { req.destroy(); } catch {} resolve([]); });
+                    req.on('timeout', () => { console.log('[Staff] Fear API timeout'); try { req.destroy(); } catch {} resolve([]); });
+                }
+                doFetch('fearproject.ru', '/api/admins', false);
             });
 
             staffList = admins.filter(filterAdmin).map(normalizeAdminToStaff);
